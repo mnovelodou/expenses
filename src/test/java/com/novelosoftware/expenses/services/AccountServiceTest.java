@@ -1,8 +1,10 @@
 package com.novelosoftware.expenses.services;
 
-import com.novelosoftware.expenses.dto.AccountRequest;
+import com.novelosoftware.expenses.dto.CreateAccountRequest;
 import com.novelosoftware.expenses.entities.AccountEntity;
+import com.novelosoftware.expenses.enums.AccountType;
 import com.novelosoftware.expenses.exceptions.AccountNotFoundException;
+import com.novelosoftware.expenses.mappers.AccountMapper;
 import com.novelosoftware.expenses.repositories.AccountRepository;
 import org.junit.jupiter.api.Test;
 
@@ -16,7 +18,8 @@ import static org.mockito.Mockito.*;
 class AccountServiceTest {
 
     private final AccountRepository repo = mock(AccountRepository.class);
-    private final AccountService service = new AccountService(repo);
+    private final AccountMapper mapper = new AccountMapper();
+    private final AccountService service = new AccountService(repo, mapper);
 
     @Test
     void getAll_returnsMappedResponses() {
@@ -47,19 +50,20 @@ class AccountServiceTest {
 
     @Test
     void create_persistsAndReturnsResponse() {
-        var request = new AccountRequest("Checking", "DEBIT", "USD", new BigDecimal("1000.00"));
+        var request = new CreateAccountRequest("Checking", AccountType.DEBIT, "USD", new BigDecimal("1000.00"));
         when(repo.create(any())).thenReturn(anEntity(1L));
 
         var result = service.create(request, "user-1");
 
-        assertEquals(1L, result.id());
+        assertEquals(1L, result.value().id());
         verify(repo).create(any());
     }
 
     @Test
     void update_throwsWhenNotFound() {
         when(repo.findById(99L)).thenReturn(Optional.empty());
-        var request = new AccountRequest("Checking", "DEBIT", "USD", new BigDecimal("1000.00"));
+        var request = new com.novelosoftware.expenses.dto.UpdateAccountRequest(
+            "Checking", AccountType.DEBIT, "USD", new BigDecimal("1000.00"));
 
         assertThrows(AccountNotFoundException.class, () -> service.update(99L, request));
     }
@@ -72,7 +76,7 @@ class AccountServiceTest {
     }
 
     private AccountEntity anEntity(Long id) {
-        return new AccountEntity(id, "Checking", "DEBIT", "USD",
+        return new AccountEntity(id, "Checking", AccountType.DEBIT, "USD",
             new BigDecimal("1000.00"), new BigDecimal("1000.00"), null, null, "user-1");
     }
 }

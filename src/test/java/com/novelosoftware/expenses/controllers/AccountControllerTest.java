@@ -1,6 +1,7 @@
 package com.novelosoftware.expenses.controllers;
 
-import com.novelosoftware.expenses.dto.AccountResponse;
+import com.novelosoftware.expenses.dto.*;
+import com.novelosoftware.expenses.enums.AccountType;
 import com.novelosoftware.expenses.exceptions.AccountNotFoundException;
 import com.novelosoftware.expenses.exceptions.GlobalExceptionHandler;
 import com.novelosoftware.expenses.services.AccountService;
@@ -34,7 +35,7 @@ class AccountControllerTest {
 
     @Test
     void getAll_returnsOk() throws Exception {
-        when(service.getAll()).thenReturn(List.of(aResponse(1L)));
+        when(service.getAll()).thenReturn(List.of(anAccount(1L)));
 
         mockMvc.perform(get("/accounts"))
             .andExpect(status().isOk())
@@ -44,7 +45,7 @@ class AccountControllerTest {
 
     @Test
     void getById_returnsOk() throws Exception {
-        when(service.getById(1L)).thenReturn(aResponse(1L));
+        when(service.getById(1L)).thenReturn(anAccount(1L));
 
         mockMvc.perform(get("/accounts/1"))
             .andExpect(status().isOk())
@@ -63,7 +64,7 @@ class AccountControllerTest {
 
     @Test
     void create_returnsCreated() throws Exception {
-        when(service.create(any(), any())).thenReturn(aResponse(1L));
+        when(service.create(any(), any())).thenReturn(new CreateAccountResponse(anAccount(1L)));
 
         mockMvc.perform(post("/accounts")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -71,7 +72,7 @@ class AccountControllerTest {
                     { "name": "Checking", "accountType": "DEBIT", "currency": "USD", "initialAmount": 1000.00 }
                 """))
             .andExpect(status().isCreated())
-            .andExpect(jsonPath("$.id").value(1));
+            .andExpect(jsonPath("$.value.id").value(1));
     }
 
     @Test
@@ -81,7 +82,7 @@ class AccountControllerTest {
         mockMvc.perform(put("/accounts/99")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                    { "name": "Checking", "accountType": "DEBIT", "currency": "USD", "initialAmount": 1000.00 }
+                    { "name": "Checking", "accountType": "DEBIT", "currency": "USD", "currentAmount": 1000.00 }
                 """))
             .andExpect(status().isNotFound());
     }
@@ -100,7 +101,8 @@ class AccountControllerTest {
             .andExpect(status().isNotFound());
     }
 
-    private AccountResponse aResponse(Long id) {
-        return new AccountResponse(id, "Checking", "DEBIT", "USD", new BigDecimal("1000.00"));
+    private Account anAccount(Long id) {
+        return new Account(id, "Checking", AccountType.DEBIT, "USD",
+            new BigDecimal("1000.00"), new BigDecimal("1000.00"), "user-1");
     }
 }
