@@ -30,3 +30,10 @@ dependencies {
 tasks.named('test') {
 	useJUnitPlatform()
 }
+
+tasks.register('localRun', Exec) {
+	commandLine 'docker', 'compose', 'up', '-d', '--wait'
+	finalizedBy 'bootRun'
+}
+
+bootRun.mustRunAfter 'localRun'
