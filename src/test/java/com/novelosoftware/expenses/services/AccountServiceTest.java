@@ -1,35 +1,71 @@
 package com.novelosoftware.expenses.services;
 
+import com.novelosoftware.expenses.dto.Account;
+import com.novelosoftware.expenses.dto.AccountType;
 import com.novelosoftware.expenses.dto.CreateAccountRequest;
+import com.novelosoftware.expenses.dto.UpdateAccountRequest;
 import com.novelosoftware.expenses.entities.AccountEntity;
-import com.novelosoftware.expenses.enums.AccountType;
-import com.novelosoftware.expenses.exceptions.AccountNotFoundException;
-import com.novelosoftware.expenses.mappers.AccountMapper;
+import com.novelosoftware.expenses.exceptions.AccountServiceExceptions.AccountNotFoundException;
+import com.novelosoftware.expenses.exceptions.AccountServiceExceptions.AccountValidationException;
 import com.novelosoftware.expenses.repositories.AccountRepository;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 class AccountServiceTest {
 
+    private static final Account VALID_ACCOUNT = new Account(
+                null,
+                "Checking", 
+                AccountType.DEBIT, 
+                "USD", 
+                new BigDecimal("1000.00"),
+                null,
+                "user-1");
+
+    private static final Account INVALID_ACCOUNT_BAD_NAME = new Account(
+                null,
+                "", 
+                AccountType.DEBIT, 
+                "USD", 
+                new BigDecimal("1000.00"),
+                null,
+                "user-1");
+
+    private static final Account INVALID_ACCOUNT_BAD_ACCOUNT_TYPE = new Account(
+                null,
+                "Checking", 
+                null, 
+                "USD", 
+                new BigDecimal("1000.00"),
+                null,
+                "user-1");
+
     private final AccountRepository repo = mock(AccountRepository.class);
-    private final AccountMapper mapper = new AccountMapper();
-    private final AccountService service = new AccountService(repo, mapper);
+    private final AccountService service = new AccountService(repo);
 
     @Test
-    void getAll_returnsMappedResponses() {
-        when(repo.findAll()).thenReturn(List.of(anEntity(1L)));
+    void getByUser_returnsPaginatedAccounts() {
+        when(repo.findByUser("user-1", 20, 0)).thenReturn(List.of(anEntity(1L)));
+        when(repo.countByUser("user-1")).thenReturn(1L);
 
-        var result = service.getAll();
+        var result = service.getByUser("user-1", 0, 20);
 
-        assertEquals(1, result.size());
-        assertEquals(1L, result.get(0).id());
-        assertEquals("Checking", result.get(0).name());
+        assertEquals(1, result.content().size());
+        assertEquals(1L, result.totalElements());
+        assertEquals(1, result.totalPages());
+        assertEquals(1L, result.content().get(0).accountId());
     }
 
     @Test
@@ -38,7 +74,7 @@ class AccountServiceTest {
 
         var result = service.getById(1L);
 
-        assertEquals(1L, result.id());
+        assertEquals(1L, result.accountId());
     }
 
     @Test
@@ -50,20 +86,39 @@ class AccountServiceTest {
 
     @Test
     void create_persistsAndReturnsResponse() {
-        var request = new CreateAccountRequest("Checking", AccountType.DEBIT, "USD", new BigDecimal("1000.00"));
+        var createAccountRequest = new CreateAccountRequest(VALID_ACCOUNT);
         when(repo.create(any())).thenReturn(anEntity(1L));
 
-        var result = service.create(request, "user-1");
+        var result = service.create(createAccountRequest);
 
-        assertEquals(1L, result.value().id());
+        assertEquals(1L, result.value().accountId());
         verify(repo).create(any());
+    }
+
+    static Stream<Arguments> invalidAccounts() {
+        return Stream.of(
+            Arguments.of("account_with_empty_name", INVALID_ACCOUNT_BAD_NAME), 
+            Arguments.of("account_with_empty_account_type", INVALID_ACCOUNT_BAD_ACCOUNT_TYPE));
+    }
+
+    @ParameterizedTest(name = "create_testInvalidInputs-{0}")
+    @MethodSource("invalidAccounts")
+    void create_testInvalidInputs(String testName, Account invalidAccount) {
+        var createAccountRequest = new CreateAccountRequest(invalidAccount);
+        assertThrows(AccountValidationException.class, () -> service.create(createAccountRequest));
+    }
+
+    @ParameterizedTest(name = "update_testInvalidInputs-{0}")
+    @MethodSource("invalidAccounts")
+    void update_testInvalidInputs(String testName, Account invalidAccount) {
+        var createAccountRequest = new UpdateAccountRequest(invalidAccount);
+        assertThrows(AccountValidationException.class, () -> service.update(99L, createAccountRequest));
     }
 
     @Test
     void update_throwsWhenNotFound() {
         when(repo.findById(99L)).thenReturn(Optional.empty());
-        var request = new com.novelosoftware.expenses.dto.UpdateAccountRequest(
-            "Checking", AccountType.DEBIT, "USD", new BigDecimal("1000.00"));
+        var request = new com.novelosoftware.expenses.dto.UpdateAccountRequest(VALID_ACCOUNT);
 
         assertThrows(AccountNotFoundException.class, () -> service.update(99L, request));
     }

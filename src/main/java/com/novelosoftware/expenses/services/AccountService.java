@@ -1,9 +1,12 @@
 package com.novelosoftware.expenses.services;
 
 import com.novelosoftware.expenses.dto.*;
-import com.novelosoftware.expenses.exceptions.AccountNotFoundException;
+import com.novelosoftware.expenses.exceptions.AccountServiceExceptions;
 import com.novelosoftware.expenses.mappers.AccountMapper;
 import com.novelosoftware.expenses.repositories.AccountRepository;
+
+import ch.qos.logback.core.util.StringUtil;
+
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -16,24 +19,13 @@ import java.util.List;
 public class AccountService {
 
     private final AccountRepository repo;
-    private final AccountMapper mapper;
 
     /**
      * @param repo   the repository for account persistence
      * @param mapper the mapper for converting between entities and DTOs
      */
-    public AccountService(AccountRepository repo, AccountMapper mapper) {
+    public AccountService(AccountRepository repo) {
         this.repo = repo;
-        this.mapper = mapper;
-    }
-
-    /**
-     * Returns all accounts.
-     *
-     * @return list of all accounts as DTOs
-     */
-    public List<Account> getAll() {
-        return repo.findAll().stream().map(mapper::toDto).toList();
     }
 
     /**
@@ -45,56 +37,77 @@ public class AccountService {
      */
     public Account getById(Long id) {
         return repo.findById(id)
-            .map(mapper::toDto)
-            .orElseThrow(() -> new AccountNotFoundException(id));
+            .map(AccountMapper::toDto)
+            .orElseThrow(() -> AccountServiceExceptions.createAccountNotFoundException(id));
     }
 
     /**
-     * Returns all accounts belonging to a given user.
+     * Returns a paginated list of accounts belonging to a given user.
      *
      * @param userId the user ID to filter by
-     * @return list of account DTOs owned by the user
+     * @param page   zero-based page number
+     * @param size   number of items per page
+     * @return paginated response containing account DTOs and pagination metadata
      */
-    public List<Account> getByUser(String userId) {
-        return repo.findByUser(userId).stream().map(mapper::toDto).toList();
+    public PageResponse<Account> getByUser(String userId, int page, int size) {
+        var content = repo.findByUser(userId, size, page * size)
+            .stream().map(AccountMapper::toDto).toList();
+        var total = repo.countByUser(userId);
+        return PageResponse.of(content, page, size, total);
     }
 
     /**
      * Creates a new account.
      *
      * @param request the create request
-     * @param userId  the ID of the user creating the account
      * @return response wrapping the created account
      */
-    public CreateAccountResponse create(CreateAccountRequest request, String userId) {
-        var entity = mapper.toEntity(request, userId);
-        return new CreateAccountResponse(mapper.toDto(repo.create(entity)));
+    public CreateAccountResponse create(CreateAccountRequest request) {
+        Account account = request.value();
+        validateAccountName(account);
+
+        var entity = AccountMapper.toEntity(request);
+        return new CreateAccountResponse(AccountMapper.toDto(repo.create(entity)));
     }
 
     /**
      * Updates an existing account.
      *
-     * @param id      the ID of the account to update
+     * @param accountId      the ID of the account to update
      * @param request the update request
      * @return response wrapping the updated account
      * @throws AccountNotFoundException if no account exists with the given ID
      */
-    public UpdateAccountResponse update(Long id, UpdateAccountRequest request) {
-        repo.findById(id).orElseThrow(() -> new AccountNotFoundException(id));
-        var entity = mapper.toEntity(request);
-        return repo.update(id, entity)
-            .map(mapper::toDto)
+    public UpdateAccountResponse update(Long accountId, UpdateAccountRequest request) {
+        validateAccountName(request.value());
+        repo.findById(accountId).orElseThrow(() -> AccountServiceExceptions.createAccountNotFoundException(accountId));
+        var entity = AccountMapper.toEntity(request);
+        
+        return repo.update(accountId, entity)
+            .map(AccountMapper::toDto)
             .map(UpdateAccountResponse::new)
-            .orElseThrow(() -> new AccountNotFoundException(id));
+            .orElseThrow(() -> AccountServiceExceptions.createAccountNotFoundException(accountId));
     }
 
     /**
      * Deletes an account by ID.
      *
-     * @param id the ID of the account to delete
+     * @param accountId the ID of the account to delete
      * @throws AccountNotFoundException if no account exists with the given ID
      */
-    public void delete(Long id) {
-        if (!repo.delete(id)) throw new AccountNotFoundException(id);
+    public void delete(Long accountId) {
+        if (!repo.delete(accountId)) {
+            throw AccountServiceExceptions.createAccountNotFoundException(accountId);
+        }
+    }
+
+    public void validateAccountName(Account account) {
+        if (StringUtil.isNullOrEmpty(account.name())) {
+            throw AccountServiceExceptions.createValidationException("Account name cannot be empty");
+        }
+
+        if (account.accountType() == null) {
+            throw AccountServiceExceptions.createValidationException("Account type cannot be empty");
+        }
     }
 }

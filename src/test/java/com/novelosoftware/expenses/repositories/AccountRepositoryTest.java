@@ -1,7 +1,8 @@
 package com.novelosoftware.expenses.repositories;
 
+import com.novelosoftware.expenses.dto.AccountType;
 import com.novelosoftware.expenses.entities.AccountEntity;
-import com.novelosoftware.expenses.enums.AccountType;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -20,14 +21,21 @@ class AccountRepositoryTest {
     private final AccountRepository repo = new AccountRepository(jdbc);
 
     @Test
-    void findAll_returnsAllEntities() {
-        when(jdbc.query(anyString(), any(RowMapper.class))).thenReturn(List.of(anEntity(1L)));
+    void findByUser_returnsPaginatedEntities() {
+        when(jdbc.query(anyString(), any(RowMapper.class), eq("user-1"), eq(20), eq(0)))
+            .thenReturn(List.of(anEntity(1L)));
 
-        var result = repo.findAll();
+        var result = repo.findByUser("user-1", 20, 0);
 
         assertEquals(1, result.size());
-        assertEquals(1L, result.get(0).accountId());
-        verify(jdbc).query(anyString(), any(RowMapper.class));
+        assertEquals("user-1", result.get(0).createdBy());
+    }
+
+    @Test
+    void countByUser_returnsCount() {
+        when(jdbc.queryForObject(anyString(), eq(Long.class), eq("user-1"))).thenReturn(5L);
+
+        assertEquals(5L, repo.countByUser("user-1"));
     }
 
     @Test
@@ -47,16 +55,6 @@ class AccountRepositoryTest {
         Optional<AccountEntity> result = repo.findById(99L);
 
         assertTrue(result.isEmpty());
-    }
-
-    @Test
-    void findByUser_returnsEntitiesForUser() {
-        when(jdbc.query(anyString(), any(RowMapper.class), eq("user-1"))).thenReturn(List.of(anEntity(1L)));
-
-        var result = repo.findByUser("user-1");
-
-        assertEquals(1, result.size());
-        assertEquals("user-1", result.get(0).createdBy());
     }
 
     @Test

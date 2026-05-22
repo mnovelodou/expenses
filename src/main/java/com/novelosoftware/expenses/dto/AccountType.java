@@ -1,4 +1,4 @@
-package com.novelosoftware.expenses.enums;
+package com.novelosoftware.expenses.dto;
 
 /**
  * Represents the type of a financial account.

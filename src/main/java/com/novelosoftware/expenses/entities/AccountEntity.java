@@ -1,9 +1,9 @@
 package com.novelosoftware.expenses.entities;
 
-import com.novelosoftware.expenses.enums.AccountType;
-
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+
+import com.novelosoftware.expenses.dto.AccountType;
 
 /**
  * Internal representation of an account row in the database.

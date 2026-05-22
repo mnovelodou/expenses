@@ -1,7 +1,8 @@
 package com.novelosoftware.expenses.repositories;
 
+import com.novelosoftware.expenses.dto.AccountType;
 import com.novelosoftware.expenses.entities.AccountEntity;
-import com.novelosoftware.expenses.enums.AccountType;
+
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
@@ -24,7 +25,7 @@ public class AccountRepository {
         this.jdbc = jdbc;
     }
 
-    private final RowMapper<AccountEntity> mapper = (rs, row) -> new AccountEntity(
+    private static final RowMapper<AccountEntity> mapper = (rs, row) -> new AccountEntity(
         rs.getLong("account_id"),
         rs.getString("name"),
         AccountType.valueOf(rs.getString("account_type")),
@@ -33,17 +34,7 @@ public class AccountRepository {
         rs.getBigDecimal("current_amount"),
         rs.getObject("created_at", java.time.OffsetDateTime.class),
         rs.getObject("updated_at", java.time.OffsetDateTime.class),
-        rs.getString("created_by")
-    );
-
-    /**
-     * Returns all accounts.
-     *
-     * @return list of all account entities
-     */
-    public List<AccountEntity> findAll() {
-        return jdbc.query("SELECT * FROM accounts", mapper);
-    }
+        rs.getString("created_by"));
 
     /**
      * Finds a single account by its ID.
@@ -57,13 +48,29 @@ public class AccountRepository {
     }
 
     /**
-     * Returns all accounts owned by a given user.
+     * Returns a page of accounts owned by a given user, ordered by account_id.
      *
      * @param userId the user ID to filter by
-     * @return list of account entities belonging to the user
+     * @param limit  the maximum number of results to return
+     * @param offset the number of results to skip
+     * @return list of account entities for the requested page
      */
-    public List<AccountEntity> findByUser(String userId) {
-        return jdbc.query("SELECT * FROM accounts WHERE created_by = ?", mapper, userId);
+    public List<AccountEntity> findByUser(String userId, int limit, int offset) {
+        return jdbc.query(
+            "SELECT * FROM accounts WHERE created_by = ? ORDER BY account_id LIMIT ? OFFSET ?",
+            mapper, userId, limit, offset);
+    }
+
+    /**
+     * Counts the total number of accounts owned by a given user.
+     *
+     * @param userId the user ID to filter by
+     * @return total count of accounts belonging to the user
+     */
+    public long countByUser(String userId) {
+        var count = jdbc.queryForObject(
+            "SELECT COUNT(*) FROM accounts WHERE created_by = ?", Long.class, userId);
+        return count != null ? count : 0L;
     }
 
     /**

@@ -4,6 +4,11 @@ import com.novelosoftware.expenses.dto.Account;
 import com.novelosoftware.expenses.dto.CreateAccountRequest;
 import com.novelosoftware.expenses.dto.UpdateAccountRequest;
 import com.novelosoftware.expenses.entities.AccountEntity;
+
+import java.math.BigDecimal;
+import java.time.OffsetDateTime;
+import java.util.Optional;
+
 import org.springframework.stereotype.Component;
 
 /**
@@ -13,13 +18,16 @@ import org.springframework.stereotype.Component;
 @Component
 public class AccountMapper {
 
+    private AccountMapper() {}
+
+
     /**
      * Converts a persisted entity to an API-facing Account DTO.
      *
      * @param entity the account entity from the database
      * @return the corresponding Account DTO
      */
-    public Account toDto(AccountEntity entity) {
+    public static Account toDto(AccountEntity entity) {
         return new Account(
             entity.accountId(),
             entity.name(),
@@ -35,21 +43,22 @@ public class AccountMapper {
      * Converts a create request into a new AccountEntity.
      * accountId and audit timestamps are left null to be assigned by the database.
      *
-     * @param request the create request from the API
+     * @param account the create request from the API
      * @param userId  the ID of the user creating the account
      * @return a new AccountEntity ready for insertion
      */
-    public AccountEntity toEntity(CreateAccountRequest request, String userId) {
+    public static AccountEntity toEntity(CreateAccountRequest request) {
+        Account account = request.value();
         return new AccountEntity(
             null,
-            request.name(),
-            request.accountType(),
-            request.currency(),
-            request.initialAmount(),
-            request.initialAmount(),
-            null,
-            null,
-            userId
+            account.name(),
+            account.accountType(),
+            account.currency(),
+            Optional.ofNullable(account.initialAmount()).orElse(BigDecimal.ZERO),
+            Optional.ofNullable(account.initialAmount()).orElse(BigDecimal.ZERO),
+            OffsetDateTime.now(),
+            OffsetDateTime.now(),
+            account.createdBy()
         );
     }
 
@@ -60,17 +69,28 @@ public class AccountMapper {
      * @param request the update request from the API
      * @return an AccountEntity carrying the updated fields
      */
-    public AccountEntity toEntity(UpdateAccountRequest request) {
+    public static AccountEntity toEntity(UpdateAccountRequest request) {
+        return toEntity(request.value());
+    }
+
+    /**
+     * Converts a create request into a new AccountEntity.
+     * accountId and audit timestamps are left null to be assigned by the database.
+     * @param account the create request from the API
+     * @param userId the ID of the user creating the account
+     * @return
+     */
+    private static AccountEntity toEntity(Account account) {
         return new AccountEntity(
+            account.accountId(),
+            account.name(),
+            account.accountType(),
+            account.currency(),
+            account.initialAmount(),
+            account.initialAmount(),
             null,
-            request.name(),
-            request.accountType(),
-            request.currency(),
             null,
-            request.currentAmount(),
-            null,
-            null,
-            null
+            account.createdBy()
         );
     }
 }

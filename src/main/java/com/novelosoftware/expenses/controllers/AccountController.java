@@ -5,8 +5,6 @@ import com.novelosoftware.expenses.services.AccountService;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
 /**
  * REST controller for account operations.
  * Delegates all business logic to AccountService.
@@ -25,16 +23,6 @@ public class AccountController {
     }
 
     /**
-     * Returns all accounts.
-     *
-     * @return list of all accounts
-     */
-    @GetMapping
-    public List<Account> getAll() {
-        return service.getAll();
-    }
-
-    /**
      * Returns a single account by ID.
      *
      * @param id the account ID
@@ -46,14 +34,19 @@ public class AccountController {
     }
 
     /**
-     * Returns all accounts belonging to a given user.
+     * Returns a paginated list of accounts belonging to a given user.
      *
      * @param userId the user ID
-     * @return list of accounts owned by the user
+     * @param page   zero-based page number (default 0)
+     * @param size   number of items per page (default 20)
+     * @return paginated accounts owned by the user
      */
     @GetMapping("/user/{userId}")
-    public List<Account> getByUser(@PathVariable String userId) {
-        return service.getByUser(userId);
+    public PageResponse<Account> getByUser(
+            @PathVariable String userId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return service.getByUser(userId, page, size);
     }
 
     /**
@@ -65,7 +58,7 @@ public class AccountController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public CreateAccountResponse create(@RequestBody CreateAccountRequest request) {
-        return service.create(request, "default_user_id");
+        return service.create(request);
     }
 
     /**

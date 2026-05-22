@@ -1,7 +1,5 @@
 package com.novelosoftware.expenses.dto;
 
-import com.novelosoftware.expenses.enums.AccountType;
-
 import java.math.BigDecimal;
 
 /**
@@ -10,7 +8,7 @@ import java.math.BigDecimal;
  */
 public record Account(
     /** Unique identifier of the account. */
-    Long id,
+    Long accountId,
     /** Display name of the account. */
     String name,
     /** Whether this is a debit or credit account. */
