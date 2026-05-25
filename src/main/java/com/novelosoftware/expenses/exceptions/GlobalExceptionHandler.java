@@ -18,8 +18,6 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import java.util.Arrays;
 import java.util.stream.Collectors;
 
-import static com.novelosoftware.expenses.exceptions.ExpenseServiceExceptions.*;
-
 /**
  * Global exception handler for all REST controllers.
  * Intercepts exceptions thrown during request processing and returns
@@ -104,8 +102,8 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(UnauthorizedAccountException.class)
     public ResponseEntity<ErrorResponse> handleUnauthorizedAccountException(UnauthorizedAccountException ex) {
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-            .body(new ErrorResponse("UNAUTHORIZED", ex.getMessage()));
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+            .body(new ErrorResponse("FORBIDDEN", ex.getMessage()));
     }
 
     /**
