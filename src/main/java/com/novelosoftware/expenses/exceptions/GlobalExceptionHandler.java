@@ -1,7 +1,11 @@
 package com.novelosoftware.expenses.exceptions;
 
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
+import com.novelosoftware.expenses.exceptions.AccountServiceExceptions.AccountNotFoundException;
 import com.novelosoftware.expenses.exceptions.AccountServiceExceptions.AccountValidationException;
+import com.novelosoftware.expenses.exceptions.ExpenseServiceExceptions.ExpenseValidationException;
+import com.novelosoftware.expenses.exceptions.ExpenseServiceExceptions.UnauthorizedAccountException;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
@@ -14,7 +18,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import java.util.Arrays;
 import java.util.stream.Collectors;
 
-import static com.novelosoftware.expenses.exceptions.AccountServiceExceptions.AccountNotFoundException;
+import static com.novelosoftware.expenses.exceptions.ExpenseServiceExceptions.*;
 
 /**
  * Global exception handler for all REST controllers.
@@ -77,9 +81,31 @@ public class GlobalExceptionHandler {
      * @return 400 response with BAD_REQUEST error code
      */
     @ExceptionHandler(AccountValidationException.class)
-    public ResponseEntity<ErrorResponse> handleValidationException(AccountValidationException ex) {
+    public ResponseEntity<ErrorResponse> handleAccountValidationException(AccountValidationException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
             .body(new ErrorResponse("BAD_REQUEST", ex.getMessage()));
+    }
+
+    /**
+     * Handles invalid accounts on write operations
+     * @param ex the exception carrying the invalid reason
+     * @return 400 response with BAD_REQUEST error code
+     */
+    @ExceptionHandler(ExpenseValidationException.class)
+    public ResponseEntity<ErrorResponse> handleExpenseValidationException(ExpenseValidationException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+            .body(new ErrorResponse("BAD_REQUEST", ex.getMessage()));
+    }
+
+    /**
+     * Handles unauthorized accounts on expense writing
+     * @param ex the exception carrying the invalid reason
+     * @return 403 response with UNAUTHORIZED error code
+     */
+    @ExceptionHandler(UnauthorizedAccountException.class)
+    public ResponseEntity<ErrorResponse> handleUnauthorizedAccountException(UnauthorizedAccountException ex) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+            .body(new ErrorResponse("UNAUTHORIZED", ex.getMessage()));
     }
 
     /**
