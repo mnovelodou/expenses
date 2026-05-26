@@ -29,6 +29,9 @@ import com.novelosoftware.expenses.exceptions.ExpenseServiceExceptions.Unauthori
 import com.novelosoftware.expenses.mappers.CategoryMapper;
 import com.novelosoftware.expenses.repositories.ExpenseRepository;
 
+/**
+ * Test class for {@link ExpenseService.class}
+ */
 @ExtendWith(MockitoExtension.class)
 public class ExpenseServiceTest {
     

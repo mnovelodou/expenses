@@ -11,6 +11,9 @@ import com.novelosoftware.expenses.dto.CreateExpenseRequest;
 import com.novelosoftware.expenses.dto.CreateExpenseResponse;
 import com.novelosoftware.expenses.services.ExpenseService;
 
+/**
+ * ExpenseController contains APIs for Expense entities.
+ */
 @RestController
 @RequestMapping("/expenses")
 public class ExpenseController {

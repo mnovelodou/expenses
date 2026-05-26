@@ -26,11 +26,16 @@ public class ExpenseService {
         this.accountService = accountService;
     }
 
+    /**
+     * Creates an expense
+     * @param request CreateExpenseRequest payload
+     * @return the created Expense wrapped into a CreateExpenseResponse.
+     */
     public CreateExpenseResponse create(CreateExpenseRequest request) {
         if (request == null || request.value() == null) {
             throw createValidationException("Expense payload not provided");
         }
-        
+
         Expense expense = request.value();
         expenseWriteValidations(expense);
 

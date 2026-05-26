@@ -8,6 +8,9 @@ import org.junit.jupiter.params.provider.EnumSource;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * Test class for {@link CategoryMapperTest.class}
+ */
 class CategoryMapperTest {
 
     @ParameterizedTest(name = "{0} has a category mapping")

@@ -25,6 +25,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import static com.novelosoftware.expenses.exceptions.AccountServiceExceptions.*;
 
+/**
+ * Test class for {@link AccountController.class}
+ */
 @WebMvcTest(AccountController.class)
 @Import(GlobalExceptionHandler.class)
 class AccountControllerTest {

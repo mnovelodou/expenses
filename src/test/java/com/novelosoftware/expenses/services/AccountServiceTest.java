@@ -22,6 +22,9 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
+/**
+ * Test class for {@link AccountService.class}
+ */
 class AccountServiceTest {
 
     private static final Account VALID_ACCOUNT = new Account(

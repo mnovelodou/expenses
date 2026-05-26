@@ -31,6 +31,9 @@ import com.novelosoftware.expenses.exceptions.ExpenseServiceExceptions;
 import com.novelosoftware.expenses.exceptions.GlobalExceptionHandler;
 import com.novelosoftware.expenses.services.ExpenseService;
 
+/** 
+ * Test class for {@link ExpenseController.class}
+ */
 @WebMvcTest(ExpenseController.class)
 @Import(GlobalExceptionHandler.class)
 public class ExpenseControllerTest {
