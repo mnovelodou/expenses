@@ -3,7 +3,7 @@ package com.novelosoftware.expenses.exceptions;
 /**
  * Custom exceptions for the AccountService.
  */
-public class AccountServiceExceptions {
+public final class AccountServiceExceptions {
 
     private AccountServiceExceptions() {
         // Private constructor to prevent instantiation

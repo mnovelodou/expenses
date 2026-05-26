@@ -4,7 +4,6 @@ import com.novelosoftware.expenses.dto.Account;
 import com.novelosoftware.expenses.dto.AccountType;
 import com.novelosoftware.expenses.dto.CreateAccountResponse;
 import com.novelosoftware.expenses.dto.PageResponse;
-import com.novelosoftware.expenses.exceptions.AccountServiceExceptions.AccountNotFoundException;
 import com.novelosoftware.expenses.exceptions.GlobalExceptionHandler;
 import com.novelosoftware.expenses.services.AccountService;
 import org.junit.jupiter.api.Test;
@@ -26,6 +25,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import static com.novelosoftware.expenses.exceptions.AccountServiceExceptions.*;
 
+/**
+ * Test class for {@link AccountController.class}
+ */
 @WebMvcTest(AccountController.class)
 @Import(GlobalExceptionHandler.class)
 class AccountControllerTest {

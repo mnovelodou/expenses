@@ -9,14 +9,11 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Optional;
 
-import org.springframework.stereotype.Component;
-
 /**
  * Maps between AccountEntity and Account DTOs.
  * Centralizes all translation logic between the persistence and API layers.
  */
-@Component
-public class AccountMapper {
+public final class AccountMapper {
 
     private AccountMapper() {}
 

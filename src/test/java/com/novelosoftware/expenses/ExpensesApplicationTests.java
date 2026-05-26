@@ -6,6 +6,9 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import javax.sql.DataSource;
 
+/**
+ * Test class for {@link ExpensesApplication.class}
+ */
 @SpringBootTest(properties = "spring.sql.init.mode=never")
 class ExpensesApplicationTests {
 
