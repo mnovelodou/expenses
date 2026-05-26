@@ -12,6 +12,9 @@ import com.novelosoftware.expenses.repositories.ExpenseRepository;
 
 import static com.novelosoftware.expenses.exceptions.ExpenseServiceExceptions.*;
 
+/**
+ * ExpenseService contains business logic related to expenses.
+ */
 @Service
 public class ExpenseService {
     
@@ -24,6 +27,10 @@ public class ExpenseService {
     }
 
     public CreateExpenseResponse create(CreateExpenseRequest request) {
+        if (request == null || request.value() == null) {
+            throw createValidationException("Expense payload not provided");
+        }
+        
         Expense expense = request.value();
         expenseWriteValidations(expense);
 
