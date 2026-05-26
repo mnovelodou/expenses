@@ -129,8 +129,11 @@ public class ExpenseRepository {
     }
 
     /**
-     * Returns a page of expenses for a given account within a date range.
+     * Returns a page of expenses for a given user and account within a date range.
+     * Both {@code userId} and {@code accountId} are required to prevent one user
+     * from reading another user's expenses by guessing an account ID.
      *
+     * @param userId    the owner of the expenses
      * @param accountId the account ID to filter by
      * @param startDate inclusive start of the date range
      * @param endDate   inclusive end of the date range
@@ -138,29 +141,32 @@ public class ExpenseRepository {
      * @param offset    number of results to skip
      * @return list of expense entities for the requested page
      */
-    public List<ExpenseEntity> findByAccount(Long accountId, LocalDate startDate, LocalDate endDate,
+    public List<ExpenseEntity> findByAccount(String userId, Long accountId, LocalDate startDate, LocalDate endDate,
                                               int limit, int offset) {
         var sql = """
             SELECT * FROM expenses
-            WHERE account_id = ? AND expense_date BETWEEN ? AND ?
+            WHERE created_by = ? AND account_id = ? AND expense_date BETWEEN ? AND ?
             ORDER BY expense_date DESC
             LIMIT ? OFFSET ?
             """;
-        return jdbc.query(sql, mapper, accountId, startDate, endDate, limit, offset);
+        return jdbc.query(sql, mapper, userId, accountId, startDate, endDate, limit, offset);
     }
 
     /**
-     * Counts the total expenses for a given account within a date range.
+     * Counts the total expenses for a given user and account within a date range.
+     * Both {@code userId} and {@code accountId} are required to prevent one user
+     * from reading another user's expenses by guessing an account ID.
      *
+     * @param userId    the owner of the expenses
      * @param accountId the account ID to filter by
      * @param startDate inclusive start of the date range
      * @param endDate   inclusive end of the date range
      * @return total count of matching expenses
      */
-    public long countByAccount(Long accountId, LocalDate startDate, LocalDate endDate) {
+    public long countByAccount(String userId, Long accountId, LocalDate startDate, LocalDate endDate) {
         var count = jdbc.queryForObject(
-            "SELECT COUNT(*) FROM expenses WHERE account_id = ? AND expense_date BETWEEN ? AND ?",
-            Long.class, accountId, startDate, endDate);
+            "SELECT COUNT(*) FROM expenses WHERE created_by = ? AND account_id = ? AND expense_date BETWEEN ? AND ?",
+            Long.class, userId, accountId, startDate, endDate);
         return count != null ? count : 0L;
     }
 

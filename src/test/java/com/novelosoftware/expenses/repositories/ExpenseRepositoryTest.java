@@ -119,10 +119,10 @@ class ExpenseRepositoryTest {
     @Test
     void findByAccount_returnsPagedResults() {
         when(jdbc.query(anyString(), any(RowMapper.class),
-            eq(1L), eq(START), eq(END), eq(20), eq(0)))
+            eq("user-1"), eq(1L), eq(START), eq(END), eq(20), eq(0)))
             .thenReturn(List.of(anEntity(1L)));
 
-        var result = repo.findByAccount(1L, START, END, 20, 0);
+        var result = repo.findByAccount("user-1", 1L, START, END, 20, 0);
 
         assertEquals(1, result.size());
         assertEquals(1L, result.get(0).accountId());
@@ -131,10 +131,10 @@ class ExpenseRepositoryTest {
     @Test
     void countByAccount_returnsCount() {
         when(jdbc.queryForObject(anyString(), eq(Long.class),
-            eq(1L), eq(START), eq(END)))
+            eq("user-1"), eq(1L), eq(START), eq(END)))
             .thenReturn(3L);
 
-        assertEquals(3L, repo.countByAccount(1L, START, END));
+        assertEquals(3L, repo.countByAccount("user-1", 1L, START, END));
     }
 
     // -------------------------------------------------------------------------
