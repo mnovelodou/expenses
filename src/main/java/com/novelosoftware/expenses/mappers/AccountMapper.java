@@ -84,7 +84,7 @@ public final class AccountMapper {
             account.accountType(),
             account.currency(),
             account.initialAmount(),
-            account.initialAmount(),
+            account.currentAmount(),
             null,
             null,
             account.createdBy()

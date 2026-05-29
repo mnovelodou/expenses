@@ -101,6 +101,9 @@ public class AccountService {
     }
 
     public void validateAccountName(Account account) {
+        if (account == null) {
+            throw AccountServiceExceptions.createValidationException("Request body must include a 'value' wrapper");
+        }
         if (StringUtil.isNullOrEmpty(account.name())) {
             throw AccountServiceExceptions.createValidationException("Account name cannot be empty");
         }
