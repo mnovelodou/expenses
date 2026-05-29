@@ -78,17 +78,16 @@ class AccountControllerIT extends BaseIT {
             .andExpect(jsonPath("$.message").value("Malformed request body"));
     }
 
-    // A6: flat payload (no "value" wrapper) — request.value() is null → NPE in validateAccountName.
-    // Currently falls through to 500. This test documents the gap; fix should return 400 instead.
     @Test
-    void create_flatPayloadMissingValueWrapper_returns500Gap() throws Exception {
+    void create_flatPayloadMissingValueWrapper_returns400() throws Exception {
         mockMvc.perform(post("/accounts")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     { "name": "Checking", "accountType": "DEBIT", "currency": "USD",
                       "initialAmount": 1000.00, "createdBy": "user-it" }
                 """))
-            .andExpect(status().isInternalServerError());
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
     }
 
     // -------------------------------------------------------------------------
@@ -239,17 +238,14 @@ class AccountControllerIT extends BaseIT {
             .andExpect(jsonPath("$.code").value("NOT_FOUND"));
     }
 
-    // A19: deleting an account that has expenses violates the FK constraint.
-    // Currently returns 500 DATABASE_ERROR. Should return 412 once GlobalExceptionHandler
-    // is updated to catch DataIntegrityViolationException specifically.
     @Test
-    void delete_accountWithExpenses_returns500DatabaseError() throws Exception {
+    void delete_accountWithExpenses_returns412() throws Exception {
         long accountId = createAccount("Has Expenses", "user-it");
         createExpense(accountId, "user-it");
 
         mockMvc.perform(delete("/accounts/{id}", accountId))
-            .andExpect(status().isInternalServerError())
-            .andExpect(jsonPath("$.code").value("DATABASE_ERROR"));
+            .andExpect(status().isPreconditionFailed())
+            .andExpect(jsonPath("$.code").value("PRECONDITION_FAILED"));
     }
 
     // -------------------------------------------------------------------------

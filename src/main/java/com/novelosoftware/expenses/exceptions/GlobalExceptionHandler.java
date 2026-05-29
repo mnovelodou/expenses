@@ -9,6 +9,7 @@ import com.novelosoftware.expenses.exceptions.ExpenseServiceExceptions.Unauthori
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -58,6 +59,19 @@ public class GlobalExceptionHandler {
         }
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
             .body(new ErrorResponse("BAD_REQUEST", message));
+    }
+
+    /**
+     * Handles FK constraint violations, e.g. deleting an account that still has expenses.
+     *
+     * @param ex the data integrity violation
+     * @return 412 response with PRECONDITION_FAILED code
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        log.warn("Data integrity violation", ex);
+        return ResponseEntity.status(HttpStatus.PRECONDITION_FAILED)
+            .body(new ErrorResponse("PRECONDITION_FAILED", "Cannot complete operation due to existing references"));
     }
 
     /**
