@@ -1,10 +1,6 @@
 package com.novelosoftware.expenses.dto;
 
-/**
- * Create expense reponse wrapper with created expense.
- */
-public record CreateExpenseResponse(
-    /** The newly created expense */
+public record UpdateExpenseResponse(
     Expense value
 ) {
     public static Builder builder() {
@@ -22,8 +18,8 @@ public record CreateExpenseResponse(
 
         public Builder value(Expense value) { this.value = value; return this; }
 
-        public CreateExpenseResponse build() {
-            return new CreateExpenseResponse(value);
+        public UpdateExpenseResponse build() {
+            return new UpdateExpenseResponse(value);
         }
     }
 }
