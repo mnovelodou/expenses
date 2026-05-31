@@ -6,6 +6,8 @@ import com.novelosoftware.expenses.dto.Account;
 import com.novelosoftware.expenses.dto.CreateExpenseRequest;
 import com.novelosoftware.expenses.dto.CreateExpenseResponse;
 import com.novelosoftware.expenses.dto.Expense;
+import com.novelosoftware.expenses.dto.UpdateExpenseRequest;
+import com.novelosoftware.expenses.dto.UpdateExpenseResponse;
 import com.novelosoftware.expenses.entities.ExpenseEntity;
 import com.novelosoftware.expenses.mappers.ExpenseMapper;
 import com.novelosoftware.expenses.repositories.ExpenseRepository;
@@ -42,7 +44,31 @@ public class ExpenseService {
         ExpenseEntity expenseEntity = ExpenseMapper.toEntity(expense);
         ExpenseEntity createdEntity = repo.create(expenseEntity);
         return new CreateExpenseResponse(ExpenseMapper.toDto(createdEntity));
-    }  
+    }
+
+    public UpdateExpenseResponse update(Long id, UpdateExpenseRequest request) {
+        if (request == null || request.value() == null)  {
+            throw createValidationException("Expense payload not provided");
+        }
+
+        if (id == null) {
+            throw createValidationException("ID not provided");
+        }
+
+        Expense expense = request.value();
+        expenseWriteValidations(expense);
+
+        // Payload is validated now we can bring previous version and make sure this is the owner.
+        ExpenseEntity oldExpense = repo.get(id).orElseThrow(() -> createExpenseNotFoundException(id));
+
+        if (!expense.createdBy().equals(oldExpense.createdBy())) {
+            throw createUnauthorizedExpenseException("Expense not owned by viewer");
+        }
+
+        ExpenseEntity newExpense = ExpenseMapper.toEntity(expense);
+        ExpenseEntity updatedEntity = repo.update(id, newExpense).orElseThrow(() -> createExpenseNotFoundException(id));
+        return new UpdateExpenseResponse(ExpenseMapper.toDto(updatedEntity));
+    }
 
     private void expenseWriteValidations(Expense expense) {
         if (expense.expenseDate() == null) {
@@ -72,7 +98,7 @@ public class ExpenseService {
         Account account = accountService.getById(expense.accountId());
         
         if (!account.createdBy().equals(expense.createdBy())) {
-            throw createUnauthorizedAccountException("User does not own the given account");
+            throw createUnauthorizedExpenseException("User does not own the given account");
         }
     }
 }

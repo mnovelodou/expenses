@@ -41,7 +41,7 @@ class AccountControllerTest {
     @Test
     void getByUser_returnsPaginatedAccounts() throws Exception {
         var page = new PageResponse<>(List.of(anAccount(1L)), 0, 20, 1L, 1);
-        when(service.getByUser("user-1", 0, 20)).thenReturn(page);
+        when(service.findByUser("user-1", 0, 20)).thenReturn(page);
 
         mockMvc.perform(get("/accounts/user/user-1"))
             .andExpect(status().isOk())

@@ -31,4 +31,37 @@ public record PageResponse<T>(
         int totalPages = size == 0 ? 0 : (int) Math.ceil((double) totalElements / size);
         return new PageResponse<>(content, page, size, totalElements, totalPages);
     }
+
+    public static <T> Builder<T> builder() {
+        return new Builder<>();
+    }
+
+    public Builder<T> toBuilder() {
+        return new Builder<T>()
+            .content(content)
+            .page(page)
+            .size(size)
+            .totalElements(totalElements)
+            .totalPages(totalPages);
+    }
+
+    public static final class Builder<T> {
+        private List<T> content;
+        private int page;
+        private int size;
+        private long totalElements;
+        private int totalPages;
+
+        private Builder() {}
+
+        public Builder<T> content(List<T> content) { this.content = content; return this; }
+        public Builder<T> page(int page) { this.page = page; return this; }
+        public Builder<T> size(int size) { this.size = size; return this; }
+        public Builder<T> totalElements(long totalElements) { this.totalElements = totalElements; return this; }
+        public Builder<T> totalPages(int totalPages) { this.totalPages = totalPages; return this; }
+
+        public PageResponse<T> build() {
+            return new PageResponse<>(content, page, size, totalElements, totalPages);
+        }
+    }
 }

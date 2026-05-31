@@ -1,5 +1,7 @@
 package com.novelosoftware.expenses.exceptions;
 
+import com.novelosoftware.expenses.dto.Expense;
+
 /**
  * Exception factory for Expenses service
  */
@@ -21,8 +23,17 @@ public final class ExpenseServiceExceptions {
      * @param message description of the exception
      * @return an ExpenseValidationException
      */
-    public static UnauthorizedAccountException createUnauthorizedAccountException(String message){
-        return new UnauthorizedAccountException(message);
+    public static UnauthorizedExpenseException createUnauthorizedExpenseException(String message){
+        return new UnauthorizedExpenseException(message);
+    }
+
+    /**
+     * Creates an ExpenseNotFoundException
+     * @param message description of the exception
+     * @return an ExpenseNotFoundException
+     */
+    public static ExpenseNotFoundException createExpenseNotFoundException(Long id) {
+        return new ExpenseNotFoundException("Expense id " + id + " not found");
     }
 
     /**
@@ -37,8 +48,14 @@ public final class ExpenseServiceExceptions {
     /**
      * Unauthorized access to accounts that don't belong to the user.
      */
-    public static final class UnauthorizedAccountException extends RuntimeException {
-        private UnauthorizedAccountException(String message) {
+    public static final class UnauthorizedExpenseException extends RuntimeException {
+        private UnauthorizedExpenseException(String message) {
+            super(message);
+        }
+    }
+
+    public static final class ExpenseNotFoundException extends RuntimeException {
+        private ExpenseNotFoundException(String message) {
             super(message);
         }
     }

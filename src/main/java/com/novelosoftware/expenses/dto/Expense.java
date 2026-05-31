@@ -6,7 +6,7 @@ import java.time.LocalDate;
 /**
  * Expense exposes a single expense line
  */
-public record Expense (
+public record Expense(
     /** ID of the expense */
     Long expenseId,
     /** Date when the expense happened */
@@ -20,5 +20,44 @@ public record Expense (
     /** sub-category o the expense, category can be infered from here */
     SubCategory subCategory,
     /** onwer of expense */
-    String createdBy 
-){}
+    String createdBy
+) {
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public Builder toBuilder() {
+        return new Builder()
+            .expenseId(expenseId)
+            .expenseDate(expenseDate)
+            .accountId(accountId)
+            .amount(amount)
+            .description(description)
+            .subCategory(subCategory)
+            .createdBy(createdBy);
+    }
+
+    public static final class Builder {
+        private Long expenseId;
+        private LocalDate expenseDate;
+        private Long accountId;
+        private BigDecimal amount;
+        private String description;
+        private SubCategory subCategory;
+        private String createdBy;
+
+        private Builder() {}
+
+        public Builder expenseId(Long expenseId) { this.expenseId = expenseId; return this; }
+        public Builder expenseDate(LocalDate expenseDate) { this.expenseDate = expenseDate; return this; }
+        public Builder accountId(Long accountId) { this.accountId = accountId; return this; }
+        public Builder amount(BigDecimal amount) { this.amount = amount; return this; }
+        public Builder description(String description) { this.description = description; return this; }
+        public Builder subCategory(SubCategory subCategory) { this.subCategory = subCategory; return this; }
+        public Builder createdBy(String createdBy) { this.createdBy = createdBy; return this; }
+
+        public Expense build() {
+            return new Expense(expenseId, expenseDate, accountId, amount, description, subCategory, createdBy);
+        }
+    }
+}

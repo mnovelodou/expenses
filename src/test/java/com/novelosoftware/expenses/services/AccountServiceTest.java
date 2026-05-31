@@ -62,7 +62,7 @@ class AccountServiceTest {
         when(repo.findByUser("user-1", 20, 0)).thenReturn(List.of(anEntity(1L)));
         when(repo.countByUser("user-1")).thenReturn(1L);
 
-        var result = service.getByUser("user-1", 0, 20);
+        var result = service.findByUser("user-1", 0, 20);
 
         assertEquals(1, result.content().size());
         assertEquals(1L, result.totalElements());

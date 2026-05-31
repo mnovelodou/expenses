@@ -6,15 +6,20 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 class ExpenseControllerIT extends BaseIT {
 
-    private long accountId;
+    private static final String USER = "user-expense-it";
+
+    private long firstAccountId;
+    private long secondAccountId;
 
     @BeforeEach
     void setUp() throws Exception {
-        accountId = createAccount("Test Account", "user-expense-it");
+        firstAccountId = createAccount("Test Account", USER);
+        secondAccountId = createAccount("Second account", USER);
     }
 
     // -------------------------------------------------------------------------
@@ -29,11 +34,11 @@ class ExpenseControllerIT extends BaseIT {
                     { "value": { "expenseDate": "2026-05-27", "accountId": %d,
                       "amount": 42.50, "description": "Test tacos",
                       "subCategory": "RESTAURANT", "createdBy": "user-expense-it" } }
-                """.formatted(accountId)))
+                """.formatted(firstAccountId)))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.value.expenseId").isNumber())
             .andExpect(jsonPath("$.value.expenseDate").value("2026-05-27"))
-            .andExpect(jsonPath("$.value.accountId").value(accountId))
+            .andExpect(jsonPath("$.value.accountId").value(firstAccountId))
             .andExpect(jsonPath("$.value.amount").value(42.50))
             .andExpect(jsonPath("$.value.description").value("Test tacos"))
             .andExpect(jsonPath("$.value.subCategory").value("RESTAURANT"))
@@ -61,7 +66,7 @@ class ExpenseControllerIT extends BaseIT {
                     { "value": { "expenseDate": "2026-05-27", "accountId": %d,
                       "amount": 42.50, "description": "Test tacos",
                       "subCategory": "RESTAURANT", "createdBy": "user-B" } }
-                """.formatted(accountId)))
+                """.formatted(firstAccountId)))
             .andExpect(status().isForbidden())
             .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
@@ -74,7 +79,7 @@ class ExpenseControllerIT extends BaseIT {
                     { "value": { "expenseDate": null, "accountId": %d,
                       "amount": 42.50, "description": "Test tacos",
                       "subCategory": "RESTAURANT", "createdBy": "user-expense-it" } }
-                """.formatted(accountId)))
+                """.formatted(firstAccountId)))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("BAD_REQUEST"))
             .andExpect(jsonPath("$.message").value("expenseDate cannot be null"));
@@ -101,7 +106,7 @@ class ExpenseControllerIT extends BaseIT {
                     { "value": { "expenseDate": "2026-05-27", "accountId": %d,
                       "amount": null, "description": "Test tacos",
                       "subCategory": "RESTAURANT", "createdBy": "user-expense-it" } }
-                """.formatted(accountId)))
+                """.formatted(firstAccountId)))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
     }
@@ -114,7 +119,7 @@ class ExpenseControllerIT extends BaseIT {
                     { "value": { "expenseDate": "2026-05-27", "accountId": %d,
                       "amount": 42.50, "description": "",
                       "subCategory": "RESTAURANT", "createdBy": "user-expense-it" } }
-                """.formatted(accountId)))
+                """.formatted(firstAccountId)))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
     }
@@ -127,7 +132,7 @@ class ExpenseControllerIT extends BaseIT {
                     { "value": { "expenseDate": "2026-05-27", "accountId": %d,
                       "amount": 42.50, "description": "Test tacos",
                       "subCategory": null, "createdBy": "user-expense-it" } }
-                """.formatted(accountId)))
+                """.formatted(firstAccountId)))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
     }
@@ -140,7 +145,7 @@ class ExpenseControllerIT extends BaseIT {
                     { "value": { "expenseDate": "2026-05-27", "accountId": %d,
                       "amount": 42.50, "description": "Test tacos",
                       "subCategory": "RESTAURANT", "createdBy": "" } }
-                """.formatted(accountId)))
+                """.formatted(firstAccountId)))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
     }
@@ -153,7 +158,7 @@ class ExpenseControllerIT extends BaseIT {
                     { "value": { "expenseDate": "2026-05-27", "accountId": %d,
                       "amount": 42.50, "description": "Test tacos",
                       "subCategory": "INVALID_ENUM", "createdBy": "user-expense-it" } }
-                """.formatted(accountId)))
+                """.formatted(firstAccountId)))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("BAD_REQUEST"))
             .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("INVALID_ENUM")));
@@ -181,8 +186,122 @@ class ExpenseControllerIT extends BaseIT {
                     { "value": { "expenseDate": "2026-05-27", "accountId": %d,
                       "amount": 15.00, "description": "Lunch",
                       "subCategory": "GROCERIES", "createdBy": "user-expense-it" } }
-                """.formatted(accountId)))
+                """.formatted(firstAccountId)))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.value.subCategory").value("GROCERIES"));
+    }
+
+    @Test
+    void update_happyPath() throws Exception {
+        Long expenseId = createExpense(firstAccountId, USER);
+        mockMvc.perform(put("/expenses/" + expenseId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                        "value": {
+                            "expenseId": %d,
+                            "expenseDate": "2026-01-15",
+                            "accountId": %d,
+                            "amount": 42.50,
+                            "description": "Test expense",
+                            "subCategory": "RESTAURANT",
+                            "createdBy": "%s"
+                        }
+                    }
+                """.formatted(expenseId, secondAccountId, USER)))
+            .andExpect(status().is2xxSuccessful())
+            .andExpect(jsonPath("$.value.accountId").value(secondAccountId));
+    }
+
+    @Test
+    void update_unauthorizedOwnerChange() throws Exception {
+        Long expenseId = createExpense(firstAccountId, USER);
+        mockMvc.perform(put("/expenses/" + expenseId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                        "value": {
+                            "expenseId": %d,
+                            "expenseDate": "2026-01-15",
+                            "accountId": %d,
+                            "amount": 42.50,
+                            "description": "Test expense",
+                            "subCategory": "RESTAURANT",
+                            "createdBy": "%s"
+                        }
+                    }
+                """.formatted(expenseId, firstAccountId, "another-user")))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.code").value("FORBIDDEN"))
+            .andExpect(jsonPath("$.message").value("User does not own the given account"));
+    }
+
+    @Test
+    void update_unauthorizedAccountOnwerChange() throws Exception {
+        Long expenseId = createExpense(firstAccountId, USER);
+        Long thirdAccount = createAccount("third-person-account", "another-user-id");
+        mockMvc.perform(put("/expenses/" + expenseId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                        "value": {
+                            "expenseId": %d,
+                            "expenseDate": "2026-01-15",
+                            "accountId": %d,
+                            "amount": 42.50,
+                            "description": "Test expense",
+                            "subCategory": "RESTAURANT",
+                            "createdBy": "%s"
+                        }
+                    }
+                """.formatted(expenseId, thirdAccount, USER)))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.code").value("FORBIDDEN"))
+            .andExpect(jsonPath("$.message").value("User does not own the given account"));
+    }
+
+    @Test
+    void update_expenseDoesNotExists() throws Exception {
+        mockMvc.perform(put("/expenses/999999")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                        "value": {
+                            "expenseId": 999999,
+                            "expenseDate": "2026-01-15",
+                            "accountId": %d,
+                            "amount": 42.50,
+                            "description": "Test expense",
+                            "subCategory": "RESTAURANT",
+                            "createdBy": "%s"
+                        }
+                    }
+                """.formatted(secondAccountId, USER)))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.code").value("NOT_FOUND"))
+            .andExpect(jsonPath("$.message").value("Expense id 999999 not found"));
+    }
+
+    @Test
+    void update_accountNotFound() throws Exception {
+        long expenseId = createExpense(firstAccountId, USER);
+        mockMvc.perform(put("/expenses/" + expenseId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                        "value": {
+                            "expenseId": %d,
+                            "expenseDate": "2026-01-15",
+                            "accountId": %d,
+                            "amount": 42.50,
+                            "description": "Test expense",
+                            "subCategory": "RESTAURANT",
+                            "createdBy": "%s"
+                        }
+                    }
+                """.formatted(expenseId, 999999, USER)))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.code").value("NOT_FOUND"))
+            .andExpect(jsonPath("$.message").value("Account with ID 999999 not found."));
     }
 }
