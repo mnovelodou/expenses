@@ -16,16 +16,9 @@ import java.util.Optional;
 @Repository
 public class ExpenseRepository {
 
-    private final JdbcTemplate jdbc;
+    static final String GET_SQL = "SELECT * FROM expenses WHERE expense_id = ?";
 
-    /**
-     * @param jdbc the JdbcTemplate used to execute queries
-     */
-    public ExpenseRepository(JdbcTemplate jdbc) {
-        this.jdbc = jdbc;
-    }
-
-    private static final RowMapper<ExpenseEntity> mapper = (rs, row) -> new ExpenseEntity(
+    static final RowMapper<ExpenseEntity> MAPPER = (rs, row) -> new ExpenseEntity(
         rs.getLong("expense_id"),
         rs.getObject("expense_date", LocalDate.class),
         rs.getLong("account_id"),
@@ -35,6 +28,15 @@ public class ExpenseRepository {
         rs.getString("subcategory"),
         rs.getString("created_by")
     );
+
+    private final JdbcTemplate jdbc;
+
+    /**
+     * @param jdbc the JdbcTemplate used to execute queries
+     */
+    public ExpenseRepository(JdbcTemplate jdbc) {
+        this.jdbc = jdbc;
+    }
 
     // -------------------------------------------------------------------------
     // Write operations
@@ -52,7 +54,7 @@ public class ExpenseRepository {
             VALUES (?, ?, ?, ?, ?, ?, ?)
             RETURNING *
             """;
-        return jdbc.queryForObject(sql, mapper,
+        return jdbc.queryForObject(sql, MAPPER,
             entity.expenseDate(), entity.accountId(), entity.amount(),
             entity.description(), entity.category(), entity.subcategory(), entity.createdBy());
     }
@@ -72,7 +74,7 @@ public class ExpenseRepository {
             WHERE expense_id = ?
             RETURNING *
             """;
-        var results = jdbc.query(sql, mapper,
+        var results = jdbc.query(sql, MAPPER,
             entity.expenseDate(), entity.accountId(), entity.amount(),
             entity.description(), entity.category(), entity.subcategory(), id);
         return results.stream().findFirst();
@@ -110,7 +112,7 @@ public class ExpenseRepository {
             ORDER BY expense_date DESC
             LIMIT ? OFFSET ?
             """;
-        return jdbc.query(sql, mapper, userId, startDate, endDate, limit, offset);
+        return jdbc.query(sql, MAPPER, userId, startDate, endDate, limit, offset);
     }
 
     /**
@@ -149,7 +151,11 @@ public class ExpenseRepository {
             ORDER BY expense_date DESC
             LIMIT ? OFFSET ?
             """;
-        return jdbc.query(sql, mapper, userId, accountId, startDate, endDate, limit, offset);
+        return jdbc.query(sql, MAPPER, userId, accountId, startDate, endDate, limit, offset);
+    }
+
+    public Optional<ExpenseEntity> get(Long expenseId) {
+        return jdbc.query(GET_SQL, MAPPER, expenseId).stream().findFirst();
     }
 
     /**
@@ -190,7 +196,7 @@ public class ExpenseRepository {
             ORDER BY expense_date DESC
             LIMIT ? OFFSET ?
             """;
-        return jdbc.query(sql, mapper, userId, category, startDate, endDate, limit, offset);
+        return jdbc.query(sql, MAPPER, userId, category, startDate, endDate, limit, offset);
     }
 
     /**
@@ -229,7 +235,7 @@ public class ExpenseRepository {
             ORDER BY expense_date DESC
             LIMIT ? OFFSET ?
             """;
-        return jdbc.query(sql, mapper, userId, subcategory, startDate, endDate, limit, offset);
+        return jdbc.query(sql, MAPPER, userId, subcategory, startDate, endDate, limit, offset);
     }
 
     /**

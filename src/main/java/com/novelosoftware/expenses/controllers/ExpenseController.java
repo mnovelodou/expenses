@@ -1,7 +1,9 @@
 package com.novelosoftware.expenses.controllers;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -9,7 +11,12 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.novelosoftware.expenses.dto.CreateExpenseRequest;
 import com.novelosoftware.expenses.dto.CreateExpenseResponse;
+import com.novelosoftware.expenses.dto.Expense;
+import com.novelosoftware.expenses.dto.UpdateExpenseRequest;
+import com.novelosoftware.expenses.dto.UpdateExpenseResponse;
 import com.novelosoftware.expenses.services.ExpenseService;
+
+import jakarta.websocket.server.PathParam;
 
 /**
  * ExpenseController contains APIs for Expense entities.
@@ -33,5 +40,10 @@ public class ExpenseController {
     @ResponseStatus(HttpStatus.CREATED)
     public CreateExpenseResponse create(@RequestBody CreateExpenseRequest request) {
         return expenseService.create(request);
+    }
+
+    @PutMapping("/{id}")
+    public UpdateExpenseResponse update(@PathVariable Long id, @RequestBody UpdateExpenseRequest request) {
+        return expenseService.update(id, request);
     }
 }

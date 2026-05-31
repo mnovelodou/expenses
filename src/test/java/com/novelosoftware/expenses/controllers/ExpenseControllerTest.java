@@ -1,6 +1,7 @@
 package com.novelosoftware.expenses.controllers;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -27,6 +28,8 @@ import com.novelosoftware.expenses.dto.CreateExpenseRequest;
 import com.novelosoftware.expenses.dto.CreateExpenseResponse;
 import com.novelosoftware.expenses.dto.Expense;
 import com.novelosoftware.expenses.dto.SubCategory;
+import com.novelosoftware.expenses.dto.UpdateExpenseRequest;
+import com.novelosoftware.expenses.dto.UpdateExpenseResponse;
 import com.novelosoftware.expenses.exceptions.ExpenseServiceExceptions;
 import com.novelosoftware.expenses.exceptions.GlobalExceptionHandler;
 import com.novelosoftware.expenses.services.ExpenseService;
@@ -38,9 +41,23 @@ import com.novelosoftware.expenses.services.ExpenseService;
 @Import(GlobalExceptionHandler.class)
 public class ExpenseControllerTest {
     
-    private static final String PAYLOAD = """
+    private static final String CREATE_PAYLOAD = """
                     {
                         "value": {
+                            "expenseDate": "2026-05-25",
+                            "accountId": 1,
+                            "amount": 1000.00,
+                            "description": "Expensive Tacos",
+                            "subCategory": "RESTAURANT",
+                            "createdBy": "user-1"
+                        }
+                    }
+                """;
+
+    private static final String UPDATE_PAYLOAD = """
+                    {
+                        "value": {
+                            "expenseId": 1,
                             "expenseDate": "2026-05-25",
                             "accountId": 1,
                             "amount": 1000.00,
@@ -62,7 +79,7 @@ public class ExpenseControllerTest {
         when(expenseService.create(any())).thenReturn(new CreateExpenseResponse(anExpense(1L)));
         mockMvc.perform(post("/expenses")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(PAYLOAD))
+                .content(CREATE_PAYLOAD))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.value.expenseId").value(1))
             .andExpect(jsonPath("$.value.expenseDate").value("2026-05-25"))
@@ -92,6 +109,43 @@ public class ExpenseControllerTest {
         verifyNoInteractions(expenseService);
     }
 
+    @Test
+    void update_testHappyPath() throws Exception {
+        when(expenseService.update(anyLong(), any(UpdateExpenseRequest.class)))
+            .thenReturn(new UpdateExpenseResponse(anExpense(1L)));
+        mockMvc.perform(put("/expenses/1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(UPDATE_PAYLOAD))
+            .andExpect(status().is2xxSuccessful())
+            .andExpect(jsonPath("$.value.expenseId").value(1))
+            .andExpect(jsonPath("$.value.expenseDate").value("2026-05-25"))
+            .andExpect(jsonPath("$.value.accountId").value(1))
+            .andExpect(jsonPath("$.value.amount").value(1000.00))
+            .andExpect(jsonPath("$.value.description").value("Expensive Tacos"));
+
+        verify(expenseService).update(1L, new UpdateExpenseRequest(anExpense(1L)));
+    }
+
+    @Test
+    void update_testMalformedJSON() throws Exception {
+        mockMvc.perform(put("/expenses/1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                        "values": {
+                            "expenseId": 1
+                            "expenseDate": "2026-05-25",
+                            "accountId": 1,
+                            "amount": 1000.00,
+                            "description": "Expensive Tacos",
+                            "subCategory": "RESTAURANT",
+                            "createdBy": "user-1"
+                        }
+                """))
+            .andExpect(status().isBadRequest());
+        verifyNoInteractions(expenseService);
+    }
+
     @ParameterizedTest(name = "create_invalidExpense-{0}")
     @MethodSource("serviceExcptions")
     void create_invalidExpense(String testName, RuntimeException exception, ResultMatcher statusMatcher) throws Exception {
@@ -99,7 +153,18 @@ public class ExpenseControllerTest {
                 .thenThrow(exception);
         mockMvc.perform(post("/expenses")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(PAYLOAD))
+                .content(CREATE_PAYLOAD))
+            .andExpect(statusMatcher);
+    }
+
+    @ParameterizedTest(name = "update_invalidExpense-{0}")
+    @MethodSource("serviceExcptions")
+    void update_invalidExpense(String testName, RuntimeException exception, ResultMatcher statusMatcher) throws Exception {
+        when(expenseService.update(anyLong(), any(UpdateExpenseRequest.class)))
+                .thenThrow(exception);
+        mockMvc.perform(put("/expenses/1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(UPDATE_PAYLOAD))
             .andExpect(statusMatcher);
     }
 
@@ -107,7 +172,7 @@ public class ExpenseControllerTest {
         return Stream.of(
             Arguments.of(
                 "unauthorized", 
-                ExpenseServiceExceptions.createUnauthorizedAccountException("forbidden"), 
+                ExpenseServiceExceptions.createUnauthorizedExpenseException("forbidden"), 
                 status().isForbidden()),
             Arguments.of(
                 "bad_request", 

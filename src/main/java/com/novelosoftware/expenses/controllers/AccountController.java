@@ -42,11 +42,11 @@ public class AccountController {
      * @return paginated accounts owned by the user
      */
     @GetMapping("/user/{userId}")
-    public PageResponse<Account> getByUser(
+    public PageResponse<Account> findByUser(
             @PathVariable String userId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return service.getByUser(userId, page, size);
+        return service.findByUser(userId, page, size);
     }
 
     /**

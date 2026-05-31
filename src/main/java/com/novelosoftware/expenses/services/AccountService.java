@@ -48,10 +48,10 @@ public class AccountService {
      * @param size   number of items per page
      * @return paginated response containing account DTOs and pagination metadata
      */
-    public PageResponse<Account> getByUser(String userId, int page, int size) {
+    public PageResponse<Account> findByUser(String userId, int page, int size) {
+        var total = repo.countByUser(userId);
         var content = repo.findByUser(userId, size, page * size)
             .stream().map(AccountMapper::toDto).toList();
-        var total = repo.countByUser(userId);
         return PageResponse.of(content, page, size, total);
     }
 

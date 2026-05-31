@@ -188,6 +188,28 @@ class ExpenseRepositoryTest {
     }
 
     // -------------------------------------------------------------------------
+    // Get
+    // -------------------------------------------------------------------------
+
+    @Test
+    void get_happyPath() {
+        var id = 1L;
+        when(jdbc.query(ExpenseRepository.GET_SQL, ExpenseRepository.MAPPER, id))
+            .thenReturn(List.of(anEntity(id)));
+        
+        assertTrue(repo.get(id).isPresent());
+    }
+
+    @Test
+    void get_notFound() {
+        var id = 1L;
+        when(jdbc.query(ExpenseRepository.GET_SQL, ExpenseRepository.MAPPER, id))
+            .thenReturn(List.of());
+        
+        assertTrue(repo.get(id).isEmpty());
+    }
+
+    // -------------------------------------------------------------------------
     // Helper
     // -------------------------------------------------------------------------
 

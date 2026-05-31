@@ -3,21 +3,23 @@ package com.novelosoftware.expenses.exceptions;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.novelosoftware.expenses.exceptions.AccountServiceExceptions.AccountNotFoundException;
 import com.novelosoftware.expenses.exceptions.AccountServiceExceptions.AccountValidationException;
-import com.novelosoftware.expenses.exceptions.ExpenseServiceExceptions.ExpenseValidationException;
-import com.novelosoftware.expenses.exceptions.ExpenseServiceExceptions.UnauthorizedAccountException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.util.Arrays;
 import java.util.stream.Collectors;
+
+import static com.novelosoftware.expenses.exceptions.ExpenseServiceExceptions.*;
 
 /**
  * Global exception handler for all REST controllers.
@@ -114,10 +116,21 @@ public class GlobalExceptionHandler {
      * @param ex the exception carrying the invalid reason
      * @return 403 response with UNAUTHORIZED error code
      */
-    @ExceptionHandler(UnauthorizedAccountException.class)
-    public ResponseEntity<ErrorResponse> handleUnauthorizedAccountException(UnauthorizedAccountException ex) {
+    @ExceptionHandler(UnauthorizedExpenseException.class)
+    public ResponseEntity<ErrorResponse> handleUnauthorizedAccountException(UnauthorizedExpenseException ex) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
             .body(new ErrorResponse("FORBIDDEN", ex.getMessage()));
+    }
+
+    /**
+     * Handles when requested expense does not exists.
+     * @param ex ExpenseNotFoundException  carrying the invalid reason
+     * @return 404 reponse with NOT_FOUND error code.
+     */
+    @ExceptionHandler(ExpenseNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleExpenseNotFoundException(ExpenseNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+            .body(new ErrorResponse("NOT_FOUND", ex.getMessage()));
     }
 
     /**
