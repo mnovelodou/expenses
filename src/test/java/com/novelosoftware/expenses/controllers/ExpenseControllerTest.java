@@ -10,6 +10,8 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+import com.novelosoftware.expenses.dto.CategoryFilter;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -189,69 +191,59 @@ public class ExpenseControllerTest {
 
 
     // -------------------------------------------------------------------------
-    // GET /expenses — filter params
+    // GET /expenses — filter params (parameterized)
     // -------------------------------------------------------------------------
 
-    @Test
-    void list_noFilters_delegatesToServiceWithNulls() throws Exception {
-        when(expenseService.listByUser(any(), any(), any(), any(), any(), isNull(), isNull(), isNull()))
+    @ParameterizedTest(name = "list_filter_{0}_delegatesToService")
+    @MethodSource("filterCombinations")
+    void list_filter_delegatesToService(
+            String testName,
+            String[] queryParams,
+            CategoryFilter expectedFilter,
+            Long expectedAccountId) throws Exception {
+
+        when(expenseService.listByUser(any(), any(), any(), any(), any(),
+            expectedFilter == null ? isNull() : eq(expectedFilter),
+            expectedAccountId == null ? isNull() : eq(expectedAccountId)))
             .thenReturn(new com.novelosoftware.expenses.dto.CursorPageResponse<>(List.of(), null, 20));
 
-        mockMvc.perform(get("/expenses").param("user_id", "user-1"))
-            .andExpect(status().isOk());
+        var request = get("/expenses").param("user_id", "user-1");
+        for (int i = 0; i < queryParams.length; i += 2) {
+            request = request.param(queryParams[i], queryParams[i + 1]);
+        }
+
+        mockMvc.perform(request).andExpect(status().isOk());
 
         verify(expenseService).listByUser(eq("user-1"), isNull(), isNull(), isNull(), isNull(),
-            isNull(), isNull(), isNull());
+            expectedFilter == null ? isNull() : eq(expectedFilter),
+            expectedAccountId == null ? isNull() : eq(expectedAccountId));
     }
 
-    @Test
-    void list_categoryFilter_delegatesToService() throws Exception {
-        when(expenseService.listByUser(any(), any(), any(), any(), any(), eq("Food"), isNull(), isNull()))
-            .thenReturn(new com.novelosoftware.expenses.dto.CursorPageResponse<>(List.of(), null, 20));
-
-        mockMvc.perform(get("/expenses")
-                .param("user_id", "user-1")
-                .param("category", "Food"))
-            .andExpect(status().isOk());
-
-        verify(expenseService).listByUser(eq("user-1"), isNull(), isNull(), isNull(), isNull(),
-            eq("Food"), isNull(), isNull());
-    }
-
-    @Test
-    void list_subcategoryFilter_delegatesToService() throws Exception {
-        when(expenseService.listByUser(any(), any(), any(), any(), any(), isNull(), eq("Groceries"), isNull()))
-            .thenReturn(new com.novelosoftware.expenses.dto.CursorPageResponse<>(List.of(), null, 20));
-
-        mockMvc.perform(get("/expenses")
-                .param("user_id", "user-1")
-                .param("subcategory", "Groceries"))
-            .andExpect(status().isOk());
-
-        verify(expenseService).listByUser(eq("user-1"), isNull(), isNull(), isNull(), isNull(),
-            isNull(), eq("Groceries"), isNull());
-    }
-
-    @Test
-    void list_accountIdFilter_delegatesToService() throws Exception {
-        when(expenseService.listByUser(any(), any(), any(), any(), any(), isNull(), isNull(), eq(3L)))
-            .thenReturn(new com.novelosoftware.expenses.dto.CursorPageResponse<>(List.of(), null, 20));
-
-        mockMvc.perform(get("/expenses")
-                .param("user_id", "user-1")
-                .param("account_id", "3"))
-            .andExpect(status().isOk());
-
-        verify(expenseService).listByUser(eq("user-1"), isNull(), isNull(), isNull(), isNull(),
-            isNull(), isNull(), eq(3L));
+    static Stream<Arguments> filterCombinations() {
+        return Stream.of(
+            Arguments.of("no_filters",
+                new String[]{},
+                null, null),
+            Arguments.of("category",
+                new String[]{"category", "Food"},
+                CategoryFilter.ofCategory("Food"), null),
+            Arguments.of("subcategory",
+                new String[]{"subcategory", "Groceries"},
+                CategoryFilter.ofSubcategory("Groceries"), null),
+            Arguments.of("account_id",
+                new String[]{"account_id", "3"},
+                null, 3L),
+            Arguments.of("category_and_account_id",
+                new String[]{"category", "Food", "account_id", "3"},
+                CategoryFilter.ofCategory("Food"), 3L),
+            Arguments.of("subcategory_and_account_id",
+                new String[]{"subcategory", "Groceries", "account_id", "3"},
+                CategoryFilter.ofSubcategory("Groceries"), 3L)
+        );
     }
 
     @Test
     void list_categoryAndSubcategoryBothProvided_returns400() throws Exception {
-        when(expenseService.listByUser(any(), any(), any(), any(), any(), eq("Food"), eq("Groceries"), isNull()))
-            .thenThrow(com.novelosoftware.expenses.exceptions.ExpenseServiceExceptions
-                .createValidationException("category and subcategory are mutually exclusive; provide at most one"));
-
         mockMvc.perform(get("/expenses")
                 .param("user_id", "user-1")
                 .param("category", "Food")
