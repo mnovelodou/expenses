@@ -154,6 +154,46 @@ public class ExpenseRepository {
         return jdbc.query(sql, MAPPER, userId, accountId, startDate, endDate, limit, offset);
     }
 
+    /**
+     * Returns a page of expenses for a given user within a date range, ordered by
+     * {@code expense_date DESC, expense_id DESC}.
+     *
+     * <p>When {@code cursor} is provided only expenses strictly older than the cursor
+     * position are returned, enabling forward pagination.
+     *
+     * @param userId    the user whose expenses to fetch
+     * @param startDate inclusive start of the date range
+     * @param endDate   inclusive end of the date range
+     * @param limit     maximum number of results to return
+     * @param cursor    optional cursor from the previous page; {@code null} for the first page
+     * @return list of expense entities for the requested page
+     */
+    public List<ExpenseEntity> findByUserCursor(String userId, LocalDate startDate, LocalDate endDate,
+                                                int limit,
+                                                com.novelosoftware.expenses.util.ExpenseCursor.DecodedCursor cursor) {
+        if (cursor == null) {
+            var sql = """
+                SELECT * FROM expenses
+                WHERE created_by = ? AND expense_date BETWEEN ? AND ?
+                ORDER BY expense_date DESC, expense_id DESC
+                LIMIT ?
+                """;
+            return jdbc.query(sql, MAPPER, userId, startDate, endDate, limit);
+        } else {
+            var sql = """
+                SELECT * FROM expenses
+                WHERE created_by = ? AND expense_date BETWEEN ? AND ?
+                  AND (expense_date < ? OR (expense_date = ? AND expense_id < ?))
+                ORDER BY expense_date DESC, expense_id DESC
+                LIMIT ?
+                """;
+            return jdbc.query(sql, MAPPER,
+                userId, startDate, endDate,
+                cursor.date(), cursor.date(), cursor.id(),
+                limit);
+        }
+    }
+
     public Optional<ExpenseEntity> get(Long expenseId) {
         return jdbc.query(GET_SQL, MAPPER, expenseId).stream().findFirst();
     }

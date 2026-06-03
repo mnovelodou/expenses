@@ -5,12 +5,19 @@ import org.springframework.stereotype.Service;
 import com.novelosoftware.expenses.dto.Account;
 import com.novelosoftware.expenses.dto.CreateExpenseRequest;
 import com.novelosoftware.expenses.dto.CreateExpenseResponse;
+import com.novelosoftware.expenses.dto.CursorPageResponse;
 import com.novelosoftware.expenses.dto.Expense;
 import com.novelosoftware.expenses.dto.UpdateExpenseRequest;
 import com.novelosoftware.expenses.dto.UpdateExpenseResponse;
 import com.novelosoftware.expenses.entities.ExpenseEntity;
 import com.novelosoftware.expenses.mappers.ExpenseMapper;
 import com.novelosoftware.expenses.repositories.ExpenseRepository;
+import com.novelosoftware.expenses.util.ExpenseCursor;
+
+import java.time.LocalDate;
+import java.time.Period;
+import java.time.YearMonth;
+import java.util.List;
 
 import static com.novelosoftware.expenses.exceptions.ExpenseServiceExceptions.*;
 
@@ -68,6 +75,85 @@ public class ExpenseService {
         ExpenseEntity newExpense = ExpenseMapper.toEntity(expense);
         ExpenseEntity updatedEntity = repo.update(id, newExpense).orElseThrow(() -> createExpenseNotFoundException(id));
         return new UpdateExpenseResponse(ExpenseMapper.toDto(updatedEntity));
+    }
+
+    /**
+     * Returns a cursor-paginated list of expenses for the given user within the specified date window.
+     *
+     * <p>Date defaults (each param is resolved independently):
+     * <ul>
+     *   <li>Both absent → previous calendar month</li>
+     *   <li>Only {@code startDate} → {@code endDate = startDate + 1 month}</li>
+     *   <li>Only {@code endDate}   → {@code startDate = endDate - 1 month}</li>
+     * </ul>
+     *
+     * @param userId      required; the user whose expenses to list
+     * @param startDate   optional start of the date window
+     * @param endDate     optional end of the date window
+     * @param limit       optional page size; defaults to 20, max 100
+     * @param cursorToken optional opaque cursor from a previous response
+     * @return a page of expenses with an optional next-page cursor
+     */
+    public CursorPageResponse<Expense> listByUser(String userId,
+                                                   LocalDate startDate,
+                                                   LocalDate endDate,
+                                                   Integer limit,
+                                                   String cursorToken) {
+        if (userId == null || userId.isBlank()) {
+            throw createValidationException("user_id is required");
+        }
+
+        // --- Resolve date window ---
+        LocalDate resolvedStart = startDate;
+        LocalDate resolvedEnd = endDate;
+
+        if (resolvedStart == null && resolvedEnd == null) {
+            YearMonth lastMonth = YearMonth.now().minusMonths(1);
+            resolvedStart = lastMonth.atDay(1);
+            resolvedEnd = lastMonth.atEndOfMonth();
+        } else if (resolvedStart == null) {
+            resolvedStart = resolvedEnd.minusMonths(1);
+        } else if (resolvedEnd == null) {
+            resolvedEnd = resolvedStart.plusMonths(1);
+        }
+
+        if (resolvedEnd.isBefore(resolvedStart)) {
+            throw createValidationException("end_date must not be before start_date");
+        }
+        if (resolvedStart.plus(Period.ofMonths(3)).isBefore(resolvedEnd)) {
+            throw createValidationException("Date range must not exceed 3 calendar months");
+        }
+
+        // --- Resolve limit ---
+        int resolvedLimit = (limit == null) ? 20 : limit;
+        if (resolvedLimit <= 0) {
+            throw createValidationException("limit must be greater than 0");
+        }
+        if (resolvedLimit > 100) {
+            throw createValidationException("limit must not exceed 100");
+        }
+
+        // --- Decode cursor ---
+        ExpenseCursor.DecodedCursor cursor = null;
+        if (cursorToken != null && !cursorToken.isBlank()) {
+            cursor = ExpenseCursor.decode(cursorToken); // throws InvalidCursorException if malformed
+            if (cursor.date().isBefore(resolvedStart) || cursor.date().isAfter(resolvedEnd)) {
+                throw createInvalidCursorException("Cursor date is outside the requested date range");
+            }
+        }
+
+        // --- Fetch and map ---
+        List<ExpenseEntity> entities = repo.findByUserCursor(userId, resolvedStart, resolvedEnd, resolvedLimit, cursor);
+        List<Expense> expenses = entities.stream().map(ExpenseMapper::toDto).toList();
+
+        // --- Build next cursor ---
+        String nextCursor = null;
+        if (expenses.size() == resolvedLimit) {
+            Expense last = expenses.get(expenses.size() - 1);
+            nextCursor = ExpenseCursor.encode(last.expenseDate(), last.expenseId());
+        }
+
+        return new CursorPageResponse<>(expenses, nextCursor, resolvedLimit);
     }
 
     private void expenseWriteValidations(Expense expense) {

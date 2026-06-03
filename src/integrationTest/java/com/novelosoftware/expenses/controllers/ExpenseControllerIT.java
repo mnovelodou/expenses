@@ -1,10 +1,14 @@
 package com.novelosoftware.expenses.controllers;
 
 import com.novelosoftware.expenses.BaseIT;
+import com.novelosoftware.expenses.util.ExpenseCursor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 
+import java.time.LocalDate;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -20,6 +24,145 @@ class ExpenseControllerIT extends BaseIT {
     void setUp() throws Exception {
         firstAccountId = createAccount("Test Account", USER);
         secondAccountId = createAccount("Second account", USER);
+    }
+
+    // -------------------------------------------------------------------------
+    // GET /expenses
+    // -------------------------------------------------------------------------
+
+    @Test
+    void list_happyPath_firstPage_returns200WithContent() throws Exception {
+        createExpenseOnDate(firstAccountId, USER, "2026-05-10");
+        createExpenseOnDate(firstAccountId, USER, "2026-05-20");
+
+        mockMvc.perform(get("/expenses")
+                .param("user_id", USER)
+                .param("start_date", "2026-05-01")
+                .param("end_date", "2026-05-31"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content").isArray())
+            .andExpect(jsonPath("$.content.length()").value(2))
+            .andExpect(jsonPath("$.pageSize").value(20))
+            .andExpect(jsonPath("$.nextCursor").doesNotExist());
+    }
+
+    @Test
+    void list_defaultsToLastMonth_whenNoDatesProvided() throws Exception {
+        mockMvc.perform(get("/expenses")
+                .param("user_id", USER))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content").isArray());
+    }
+
+    @Test
+    void list_cursorPagination_secondPageFollowsFirst() throws Exception {
+        // Create 3 expenses in range
+        createExpenseOnDate(firstAccountId, USER, "2026-05-10");
+        createExpenseOnDate(firstAccountId, USER, "2026-05-15");
+        createExpenseOnDate(firstAccountId, USER, "2026-05-20");
+
+        // First page: limit=2
+        String firstPageResponse = mockMvc.perform(get("/expenses")
+                .param("user_id", USER)
+                .param("start_date", "2026-05-01")
+                .param("end_date", "2026-05-31")
+                .param("limit", "2"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content.length()").value(2))
+            .andExpect(jsonPath("$.nextCursor").isString())
+            .andReturn().getResponse().getContentAsString();
+
+        String nextCursor = objectMapper.readTree(firstPageResponse).path("nextCursor").asText();
+
+        // Second page using cursor
+        mockMvc.perform(get("/expenses")
+                .param("user_id", USER)
+                .param("start_date", "2026-05-01")
+                .param("end_date", "2026-05-31")
+                .param("limit", "2")
+                .param("cursor", nextCursor))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content.length()").value(1))
+            .andExpect(jsonPath("$.nextCursor").doesNotExist());
+    }
+
+    @Test
+    void list_missingUserId_returns400() throws Exception {
+        mockMvc.perform(get("/expenses")
+                .param("start_date", "2026-05-01")
+                .param("end_date", "2026-05-31"))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void list_malformedCursor_returns400() throws Exception {
+        mockMvc.perform(get("/expenses")
+                .param("user_id", USER)
+                .param("start_date", "2026-05-01")
+                .param("end_date", "2026-05-31")
+                .param("cursor", "not-a-valid-cursor!!"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+    }
+
+    @Test
+    void list_cursorDateOutsideRange_returns400() throws Exception {
+        String cursor = ExpenseCursor.encode(LocalDate.of(2026, 3, 1), 10L);
+
+        mockMvc.perform(get("/expenses")
+                .param("user_id", USER)
+                .param("start_date", "2026-05-01")
+                .param("end_date", "2026-05-31")
+                .param("cursor", cursor))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+    }
+
+    @Test
+    void list_rangeTooLarge_returns400() throws Exception {
+        mockMvc.perform(get("/expenses")
+                .param("user_id", USER)
+                .param("start_date", "2026-01-01")
+                .param("end_date", "2026-06-01"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+    }
+
+    @Test
+    void list_endDateBeforeStartDate_returns400() throws Exception {
+        mockMvc.perform(get("/expenses")
+                .param("user_id", USER)
+                .param("start_date", "2026-05-31")
+                .param("end_date", "2026-05-01"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+    }
+
+    @Test
+    void list_limitAboveCap_returns400() throws Exception {
+        mockMvc.perform(get("/expenses")
+                .param("user_id", USER)
+                .param("start_date", "2026-05-01")
+                .param("end_date", "2026-05-31")
+                .param("limit", "101"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+    }
+
+    @Test
+    void list_resultsAreInDescendingOrder() throws Exception {
+        createExpenseOnDate(firstAccountId, USER, "2026-05-10");
+        createExpenseOnDate(firstAccountId, USER, "2026-05-20");
+        createExpenseOnDate(firstAccountId, USER, "2026-05-15");
+
+        mockMvc.perform(get("/expenses")
+                .param("user_id", USER)
+                .param("start_date", "2026-05-01")
+                .param("end_date", "2026-05-31"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content[0].expenseDate").value("2026-05-20"))
+            .andExpect(jsonPath("$.content[1].expenseDate").value("2026-05-15"))
+            .andExpect(jsonPath("$.content[2].expenseDate").value("2026-05-10"));
     }
 
     // -------------------------------------------------------------------------

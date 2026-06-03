@@ -19,6 +19,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import java.util.Arrays;
 import java.util.stream.Collectors;
 
+import com.novelosoftware.expenses.exceptions.ExpenseServiceExceptions.InvalidCursorException;
+
 import static com.novelosoftware.expenses.exceptions.ExpenseServiceExceptions.*;
 
 /**
@@ -131,6 +133,18 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleExpenseNotFoundException(ExpenseNotFoundException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
             .body(new ErrorResponse("NOT_FOUND", ex.getMessage()));
+    }
+
+    /**
+     * Handles malformed or out-of-range cursor tokens in list requests.
+     *
+     * @param ex the invalid cursor exception
+     * @return 400 response with BAD_REQUEST error code
+     */
+    @ExceptionHandler(InvalidCursorException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidCursorException(InvalidCursorException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+            .body(new ErrorResponse("BAD_REQUEST", ex.getMessage()));
     }
 
     /**
