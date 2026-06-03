@@ -10,7 +10,7 @@ The system SHALL expose a `GET /expenses` endpoint that returns a paginated list
 - Only `start_date` provided: `end_date` defaults to `start_date` plus 1 month.
 - Only `end_date` provided: `start_date` defaults to `end_date` minus 1 month.
 
-The date range from `start_date` to `end_date` SHALL NOT exceed 3 calendar months; requests exceeding this limit SHALL be rejected with HTTP 400.
+The date range from `start_date` to `end_date` SHALL NOT exceed 3 calendar months; requests exceeding this limit SHALL be rejected with HTTP 400. Optional filters `category`, `subcategory`, and `accountId` MAY be supplied to narrow results; see the `expense-search-filters` spec.
 
 #### Scenario: Missing user_id — rejected
 - **WHEN** a GET request is made to `/expenses` without a `user_id` parameter
