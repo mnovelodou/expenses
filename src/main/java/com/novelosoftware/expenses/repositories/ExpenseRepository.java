@@ -1,37 +1,28 @@
 package com.novelosoftware.expenses.repositories;
 
 import com.novelosoftware.expenses.entities.ExpenseEntity;
+import com.novelosoftware.expenses.util.ExpenseCursor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
 /**
  * Provides CRUD and filtered query operations for the expenses table using JDBC.
- * All finder methods accept a date range and support pagination via limit/offset.
+ * <p>
+ * All list queries require {@code created_by} and a date range — these are mandatory
+ * so that {@code idx_expenses_user_date (created_by, expense_date DESC, expense_id DESC)}
+ * can bound the scan. Optional filters (category, subcategory, accountId) are applied
+ * as additional predicates on top of that bounded scan.
  */
 @Repository
 public class ExpenseRepository {
 
     static final String GET_SQL = "SELECT * FROM expenses WHERE expense_id = ?";
-
-    static final String FIND_BY_USER_CURSOR_SQL = """
-        SELECT * FROM expenses
-        WHERE created_by = ? AND expense_date BETWEEN ? AND ?
-        ORDER BY expense_date DESC, expense_id DESC
-        LIMIT ?
-        """;
-
-    static final String FIND_BY_USER_CURSOR_WITH_CURSOR_SQL = """
-        SELECT * FROM expenses
-        WHERE created_by = ? AND expense_date BETWEEN ? AND ?
-          AND (expense_date < ? OR (expense_date = ? AND expense_id < ?))
-        ORDER BY expense_date DESC, expense_id DESC
-        LIMIT ?
-        """;
 
     static final RowMapper<ExpenseEntity> MAPPER = (rs, row) -> new ExpenseEntity(
         rs.getLong("expense_id"),
@@ -110,189 +101,69 @@ public class ExpenseRepository {
     // -------------------------------------------------------------------------
 
     /**
-     * Returns a page of expenses for a given user within a date range.
+     * Returns a page of expenses for a given user within a date range, with optional
+     * filters on category, subcategory, and accountId. Exactly one of category or
+     * subcategory may be supplied; supplying both is a caller error and should be
+     * rejected at the service layer before reaching this method.
      *
-     * @param userId    the user ID to filter by
-     * @param startDate inclusive start of the date range
-     * @param endDate   inclusive end of the date range
-     * @param limit     maximum number of results to return
-     * @param offset    number of results to skip
-     * @return list of expense entities for the requested page
-     */
-    public List<ExpenseEntity> findByUser(String userId, LocalDate startDate, LocalDate endDate,
-                                          int limit, int offset) {
-        var sql = """
-            SELECT * FROM expenses
-            WHERE created_by = ? AND expense_date BETWEEN ? AND ?
-            ORDER BY expense_date DESC
-            LIMIT ? OFFSET ?
-            """;
-        return jdbc.query(sql, MAPPER, userId, startDate, endDate, limit, offset);
-    }
-
-    /**
-     * Counts the total expenses for a given user within a date range.
-     *
-     * @param userId    the user ID to filter by
-     * @param startDate inclusive start of the date range
-     * @param endDate   inclusive end of the date range
-     * @return total count of matching expenses
-     */
-    public long countByUser(String userId, LocalDate startDate, LocalDate endDate) {
-        var count = jdbc.queryForObject(
-            "SELECT COUNT(*) FROM expenses WHERE created_by = ? AND expense_date BETWEEN ? AND ?",
-            Long.class, userId, startDate, endDate);
-        return count != null ? count : 0L;
-    }
-
-    /**
-     * Returns a page of expenses for a given user and account within a date range.
-     * Both {@code userId} and {@code accountId} are required to prevent one user
-     * from reading another user's expenses by guessing an account ID.
-     *
-     * @param userId    the owner of the expenses
-     * @param accountId the account ID to filter by
-     * @param startDate inclusive start of the date range
-     * @param endDate   inclusive end of the date range
-     * @param limit     maximum number of results to return
-     * @param offset    number of results to skip
-     * @return list of expense entities for the requested page
-     */
-    public List<ExpenseEntity> findByAccount(String userId, Long accountId, LocalDate startDate, LocalDate endDate,
-                                              int limit, int offset) {
-        var sql = """
-            SELECT * FROM expenses
-            WHERE created_by = ? AND account_id = ? AND expense_date BETWEEN ? AND ?
-            ORDER BY expense_date DESC
-            LIMIT ? OFFSET ?
-            """;
-        return jdbc.query(sql, MAPPER, userId, accountId, startDate, endDate, limit, offset);
-    }
-
-    /**
-     * Returns a page of expenses for a given user within a date range, ordered by
-     * {@code expense_date DESC, expense_id DESC}.
-     *
-     * <p>When {@code cursor} is provided only expenses strictly older than the cursor
+     * <p>Results are ordered by {@code expense_date DESC, expense_id DESC}.
+     * When {@code cursor} is provided only expenses strictly older than the cursor
      * position are returned, enabling forward pagination.
      *
-     * @param userId    the user whose expenses to fetch
-     * @param startDate inclusive start of the date range
-     * @param endDate   inclusive end of the date range
-     * @param limit     maximum number of results to return
-     * @param cursor    optional cursor from the previous page; {@code null} for the first page
+     * <p>The {@code idx_expenses_user_date} index bounds the scan via the mandatory
+     * {@code userId} + date range predicates; the optional filters are applied on top.
+     *
+     * @param userId      the user whose expenses to fetch (mandatory)
+     * @param startDate   inclusive start of the date range (mandatory)
+     * @param endDate     inclusive end of the date range (mandatory)
+     * @param category    optional category filter; mutually exclusive with subcategory
+     * @param subcategory optional subcategory filter; mutually exclusive with category
+     * @param accountId   optional account filter
+     * @param limit       maximum number of results to return
+     * @param cursor      optional cursor from the previous page; {@code null} for the first page
      * @return list of expense entities for the requested page
      */
-    public List<ExpenseEntity> findByUserCursor(String userId, LocalDate startDate, LocalDate endDate,
-                                                int limit,
-                                                com.novelosoftware.expenses.util.ExpenseCursor.DecodedCursor cursor) {
-        if (cursor == null) {
-            return jdbc.query(FIND_BY_USER_CURSOR_SQL, MAPPER, userId, startDate, endDate, limit);
-        } else {
-            return jdbc.query(FIND_BY_USER_CURSOR_WITH_CURSOR_SQL, MAPPER,
-                userId, startDate, endDate,
-                cursor.date(), cursor.date(), cursor.id(),
-                limit);
+    public List<ExpenseEntity> findByFiltersCursor(
+            String userId, LocalDate startDate, LocalDate endDate,
+            String category, String subcategory, Long accountId,
+            int limit,
+            ExpenseCursor.DecodedCursor cursor) {
+
+        var sql = new StringBuilder("""
+            SELECT * FROM expenses
+            WHERE created_by = ? AND expense_date BETWEEN ? AND ?
+            """);
+        var params = new ArrayList<>();
+        params.add(userId);
+        params.add(startDate);
+        params.add(endDate);
+
+        if (category != null) {
+            sql.append("AND category = ? ");
+            params.add(category);
         }
+        if (subcategory != null) {
+            sql.append("AND subcategory = ? ");
+            params.add(subcategory);
+        }
+        if (accountId != null) {
+            sql.append("AND account_id = ? ");
+            params.add(accountId);
+        }
+        if (cursor != null) {
+            sql.append("AND (expense_date < ? OR (expense_date = ? AND expense_id < ?)) ");
+            params.add(cursor.date());
+            params.add(cursor.date());
+            params.add(cursor.id());
+        }
+
+        sql.append("ORDER BY expense_date DESC, expense_id DESC LIMIT ?");
+        params.add(limit);
+
+        return jdbc.query(sql.toString(), MAPPER, params.toArray());
     }
 
     public Optional<ExpenseEntity> get(Long expenseId) {
         return jdbc.query(GET_SQL, MAPPER, expenseId).stream().findFirst();
-    }
-
-    /**
-     * Counts the total expenses for a given user and account within a date range.
-     * Both {@code userId} and {@code accountId} are required to prevent one user
-     * from reading another user's expenses by guessing an account ID.
-     *
-     * @param userId    the owner of the expenses
-     * @param accountId the account ID to filter by
-     * @param startDate inclusive start of the date range
-     * @param endDate   inclusive end of the date range
-     * @return total count of matching expenses
-     */
-    public long countByAccount(String userId, Long accountId, LocalDate startDate, LocalDate endDate) {
-        var count = jdbc.queryForObject(
-            "SELECT COUNT(*) FROM expenses WHERE created_by = ? AND account_id = ? AND expense_date BETWEEN ? AND ?",
-            Long.class, userId, accountId, startDate, endDate);
-        return count != null ? count : 0L;
-    }
-
-    /**
-     * Returns a page of expenses for a given user and category within a date range.
-     *
-     * @param userId    the user ID to filter by
-     * @param category  the category to filter by
-     * @param startDate inclusive start of the date range
-     * @param endDate   inclusive end of the date range
-     * @param limit     maximum number of results to return
-     * @param offset    number of results to skip
-     * @return list of expense entities for the requested page
-     */
-    public List<ExpenseEntity> findByCategory(String userId, String category,
-                                               LocalDate startDate, LocalDate endDate,
-                                               int limit, int offset) {
-        var sql = """
-            SELECT * FROM expenses
-            WHERE created_by = ? AND category = ? AND expense_date BETWEEN ? AND ?
-            ORDER BY expense_date DESC
-            LIMIT ? OFFSET ?
-            """;
-        return jdbc.query(sql, MAPPER, userId, category, startDate, endDate, limit, offset);
-    }
-
-    /**
-     * Counts the total expenses for a given user and category within a date range.
-     *
-     * @param userId    the user ID to filter by
-     * @param category  the category to filter by
-     * @param startDate inclusive start of the date range
-     * @param endDate   inclusive end of the date range
-     * @return total count of matching expenses
-     */
-    public long countByCategory(String userId, String category, LocalDate startDate, LocalDate endDate) {
-        var count = jdbc.queryForObject(
-            "SELECT COUNT(*) FROM expenses WHERE created_by = ? AND category = ? AND expense_date BETWEEN ? AND ?",
-            Long.class, userId, category, startDate, endDate);
-        return count != null ? count : 0L;
-    }
-
-    /**
-     * Returns a page of expenses for a given user and subcategory within a date range.
-     *
-     * @param userId      the user ID to filter by
-     * @param subcategory the subcategory to filter by
-     * @param startDate   inclusive start of the date range
-     * @param endDate     inclusive end of the date range
-     * @param limit       maximum number of results to return
-     * @param offset      number of results to skip
-     * @return list of expense entities for the requested page
-     */
-    public List<ExpenseEntity> findBySubcategory(String userId, String subcategory,
-                                                  LocalDate startDate, LocalDate endDate,
-                                                  int limit, int offset) {
-        var sql = """
-            SELECT * FROM expenses
-            WHERE created_by = ? AND subcategory = ? AND expense_date BETWEEN ? AND ?
-            ORDER BY expense_date DESC
-            LIMIT ? OFFSET ?
-            """;
-        return jdbc.query(sql, MAPPER, userId, subcategory, startDate, endDate, limit, offset);
-    }
-
-    /**
-     * Counts the total expenses for a given user and subcategory within a date range.
-     *
-     * @param userId      the user ID to filter by
-     * @param subcategory the subcategory to filter by
-     * @param startDate   inclusive start of the date range
-     * @param endDate     inclusive end of the date range
-     * @return total count of matching expenses
-     */
-    public long countBySubcategory(String userId, String subcategory, LocalDate startDate, LocalDate endDate) {
-        var count = jdbc.queryForObject(
-            "SELECT COUNT(*) FROM expenses WHERE created_by = ? AND subcategory = ? AND expense_date BETWEEN ? AND ?",
-            Long.class, userId, subcategory, startDate, endDate);
-        return count != null ? count : 0L;
     }
 }

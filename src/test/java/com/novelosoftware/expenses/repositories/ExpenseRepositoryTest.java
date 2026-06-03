@@ -1,6 +1,7 @@
 package com.novelosoftware.expenses.repositories;
 
 import com.novelosoftware.expenses.entities.ExpenseEntity;
+import com.novelosoftware.expenses.util.ExpenseCursor;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -79,115 +80,6 @@ class ExpenseRepositoryTest {
     }
 
     // -------------------------------------------------------------------------
-    // findByUser
-    // -------------------------------------------------------------------------
-
-    @Test
-    void findByUser_returnsPagedResults() {
-        when(jdbc.query(anyString(), any(RowMapper.class),
-            eq("user-1"), eq(START), eq(END), eq(20), eq(0)))
-            .thenReturn(List.of(anEntity(1L)));
-
-        var result = repo.findByUser("user-1", START, END, 20, 0);
-
-        assertEquals(1, result.size());
-        assertEquals("user-1", result.get(0).createdBy());
-    }
-
-    @Test
-    void countByUser_returnsCount() {
-        when(jdbc.queryForObject(anyString(), eq(Long.class),
-            eq("user-1"), eq(START), eq(END)))
-            .thenReturn(5L);
-
-        assertEquals(5L, repo.countByUser("user-1", START, END));
-    }
-
-    @Test
-    void countByUser_returnsZeroWhenNull() {
-        when(jdbc.queryForObject(anyString(), eq(Long.class),
-            eq("user-1"), eq(START), eq(END)))
-            .thenReturn(null);
-
-        assertEquals(0L, repo.countByUser("user-1", START, END));
-    }
-
-    // -------------------------------------------------------------------------
-    // findByAccount
-    // -------------------------------------------------------------------------
-
-    @Test
-    void findByAccount_returnsPagedResults() {
-        when(jdbc.query(anyString(), any(RowMapper.class),
-            eq("user-1"), eq(1L), eq(START), eq(END), eq(20), eq(0)))
-            .thenReturn(List.of(anEntity(1L)));
-
-        var result = repo.findByAccount("user-1", 1L, START, END, 20, 0);
-
-        assertEquals(1, result.size());
-        assertEquals(1L, result.get(0).accountId());
-    }
-
-    @Test
-    void countByAccount_returnsCount() {
-        when(jdbc.queryForObject(anyString(), eq(Long.class),
-            eq("user-1"), eq(1L), eq(START), eq(END)))
-            .thenReturn(3L);
-
-        assertEquals(3L, repo.countByAccount("user-1", 1L, START, END));
-    }
-
-    // -------------------------------------------------------------------------
-    // findByCategory
-    // -------------------------------------------------------------------------
-
-    @Test
-    void findByCategory_returnsPagedResults() {
-        when(jdbc.query(anyString(), any(RowMapper.class),
-            eq("user-1"), eq("Food"), eq(START), eq(END), eq(20), eq(0)))
-            .thenReturn(List.of(anEntity(1L)));
-
-        var result = repo.findByCategory("user-1", "Food", START, END, 20, 0);
-
-        assertEquals(1, result.size());
-        assertEquals("Food", result.get(0).category());
-    }
-
-    @Test
-    void countByCategory_returnsCount() {
-        when(jdbc.queryForObject(anyString(), eq(Long.class),
-            eq("user-1"), eq("Food"), eq(START), eq(END)))
-            .thenReturn(7L);
-
-        assertEquals(7L, repo.countByCategory("user-1", "Food", START, END));
-    }
-
-    // -------------------------------------------------------------------------
-    // findBySubcategory
-    // -------------------------------------------------------------------------
-
-    @Test
-    void findBySubcategory_returnsPagedResults() {
-        when(jdbc.query(anyString(), any(RowMapper.class),
-            eq("user-1"), eq("Restaurants"), eq(START), eq(END), eq(20), eq(0)))
-            .thenReturn(List.of(anEntity(1L)));
-
-        var result = repo.findBySubcategory("user-1", "Restaurants", START, END, 20, 0);
-
-        assertEquals(1, result.size());
-        assertEquals("Restaurants", result.get(0).subcategory());
-    }
-
-    @Test
-    void countBySubcategory_returnsCount() {
-        when(jdbc.queryForObject(anyString(), eq(Long.class),
-            eq("user-1"), eq("Restaurants"), eq(START), eq(END)))
-            .thenReturn(2L);
-
-        assertEquals(2L, repo.countBySubcategory("user-1", "Restaurants", START, END));
-    }
-
-    // -------------------------------------------------------------------------
     // Get
     // -------------------------------------------------------------------------
 
@@ -196,7 +88,7 @@ class ExpenseRepositoryTest {
         var id = 1L;
         when(jdbc.query(ExpenseRepository.GET_SQL, ExpenseRepository.MAPPER, id))
             .thenReturn(List.of(anEntity(id)));
-        
+
         assertTrue(repo.get(id).isPresent());
     }
 
@@ -205,50 +97,101 @@ class ExpenseRepositoryTest {
         var id = 1L;
         when(jdbc.query(ExpenseRepository.GET_SQL, ExpenseRepository.MAPPER, id))
             .thenReturn(List.of());
-        
+
         assertTrue(repo.get(id).isEmpty());
     }
 
     // -------------------------------------------------------------------------
-    // findByUserCursor
+    // findByFiltersCursor — no filters
     // -------------------------------------------------------------------------
 
     @Test
-    void findByUserCursor_firstPage_usesFirstPageSql() {
-        when(jdbc.query(eq(ExpenseRepository.FIND_BY_USER_CURSOR_SQL), any(RowMapper.class),
-            eq("user-1"), eq(START), eq(END), eq(20)))
+    void findByFiltersCursor_noFilters_noCursor_returnsResults() {
+        when(jdbc.query(anyString(), any(RowMapper.class), eq("user-1"), eq(START), eq(END), eq(20)))
             .thenReturn(List.of(anEntity(1L)));
 
-        var result = repo.findByUserCursor("user-1", START, END, 20, null);
+        var result = repo.findByFiltersCursor("user-1", START, END, null, null, null, 20, null);
 
         assertEquals(1, result.size());
+        assertEquals(1L, result.get(0).expenseId());
     }
 
     @Test
-    void findByUserCursor_withCursor_usesCursorSql() {
+    void findByFiltersCursor_noFilters_withCursor_appendsCursorPredicate() {
         LocalDate cursorDate = LocalDate.of(2026, 1, 15);
         long cursorId = 5L;
-        var cursor = new com.novelosoftware.expenses.util.ExpenseCursor.DecodedCursor(cursorDate, cursorId);
+        var cursor = new ExpenseCursor.DecodedCursor(cursorDate, cursorId);
 
-        when(jdbc.query(eq(ExpenseRepository.FIND_BY_USER_CURSOR_WITH_CURSOR_SQL), any(RowMapper.class),
+        when(jdbc.query(anyString(), any(RowMapper.class),
             eq("user-1"), eq(START), eq(END),
             eq(cursorDate), eq(cursorDate), eq(cursorId),
             eq(20)))
             .thenReturn(List.of(anEntity(3L)));
 
-        var result = repo.findByUserCursor("user-1", START, END, 20, cursor);
+        var result = repo.findByFiltersCursor("user-1", START, END, null, null, null, 20, cursor);
 
         assertEquals(1, result.size());
         assertEquals(3L, result.get(0).expenseId());
     }
 
+    // -------------------------------------------------------------------------
+    // findByFiltersCursor — single filters
+    // -------------------------------------------------------------------------
+
     @Test
-    void findByUserCursor_noResults_returnsEmptyList() {
-        when(jdbc.query(eq(ExpenseRepository.FIND_BY_USER_CURSOR_SQL), any(RowMapper.class),
-            eq("user-1"), eq(START), eq(END), eq(20)))
+    void findByFiltersCursor_categoryFilter_passedAsParam() {
+        when(jdbc.query(anyString(), any(RowMapper.class),
+            eq("user-1"), eq(START), eq(END), eq("Food"), eq(20)))
+            .thenReturn(List.of(anEntity(1L)));
+
+        var result = repo.findByFiltersCursor("user-1", START, END, "Food", null, null, 20, null);
+
+        assertEquals(1, result.size());
+    }
+
+    @Test
+    void findByFiltersCursor_subcategoryFilter_passedAsParam() {
+        when(jdbc.query(anyString(), any(RowMapper.class),
+            eq("user-1"), eq(START), eq(END), eq("Groceries"), eq(20)))
+            .thenReturn(List.of(anEntity(1L)));
+
+        var result = repo.findByFiltersCursor("user-1", START, END, null, "Groceries", null, 20, null);
+
+        assertEquals(1, result.size());
+    }
+
+    @Test
+    void findByFiltersCursor_accountIdFilter_passedAsParam() {
+        when(jdbc.query(anyString(), any(RowMapper.class),
+            eq("user-1"), eq(START), eq(END), eq(3L), eq(20)))
+            .thenReturn(List.of(anEntity(1L)));
+
+        var result = repo.findByFiltersCursor("user-1", START, END, null, null, 3L, 20, null);
+
+        assertEquals(1, result.size());
+    }
+
+    // -------------------------------------------------------------------------
+    // findByFiltersCursor — combined filters
+    // -------------------------------------------------------------------------
+
+    @Test
+    void findByFiltersCursor_categoryAndAccountId_bothPassedAsParams() {
+        when(jdbc.query(anyString(), any(RowMapper.class),
+            eq("user-1"), eq(START), eq(END), eq("Food"), eq(3L), eq(20)))
+            .thenReturn(List.of(anEntity(1L)));
+
+        var result = repo.findByFiltersCursor("user-1", START, END, "Food", null, 3L, 20, null);
+
+        assertEquals(1, result.size());
+    }
+
+    @Test
+    void findByFiltersCursor_noResults_returnsEmptyList() {
+        when(jdbc.query(anyString(), any(RowMapper.class), any()))
             .thenReturn(List.of());
 
-        var result = repo.findByUserCursor("user-1", START, END, 20, null);
+        var result = repo.findByFiltersCursor("user-1", START, END, null, null, null, 20, null);
 
         assertTrue(result.isEmpty());
     }

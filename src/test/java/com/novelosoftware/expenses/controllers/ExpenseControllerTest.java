@@ -2,6 +2,8 @@ package com.novelosoftware.expenses.controllers;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -10,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
@@ -184,6 +187,77 @@ public class ExpenseControllerTest {
                 status().isInternalServerError()));
     }
 
+
+    // -------------------------------------------------------------------------
+    // GET /expenses — filter params
+    // -------------------------------------------------------------------------
+
+    @Test
+    void list_noFilters_delegatesToServiceWithNulls() throws Exception {
+        when(expenseService.listByUser(any(), any(), any(), any(), any(), isNull(), isNull(), isNull()))
+            .thenReturn(new com.novelosoftware.expenses.dto.CursorPageResponse<>(List.of(), null, 20));
+
+        mockMvc.perform(get("/expenses").param("user_id", "user-1"))
+            .andExpect(status().isOk());
+
+        verify(expenseService).listByUser(eq("user-1"), isNull(), isNull(), isNull(), isNull(),
+            isNull(), isNull(), isNull());
+    }
+
+    @Test
+    void list_categoryFilter_delegatesToService() throws Exception {
+        when(expenseService.listByUser(any(), any(), any(), any(), any(), eq("Food"), isNull(), isNull()))
+            .thenReturn(new com.novelosoftware.expenses.dto.CursorPageResponse<>(List.of(), null, 20));
+
+        mockMvc.perform(get("/expenses")
+                .param("user_id", "user-1")
+                .param("category", "Food"))
+            .andExpect(status().isOk());
+
+        verify(expenseService).listByUser(eq("user-1"), isNull(), isNull(), isNull(), isNull(),
+            eq("Food"), isNull(), isNull());
+    }
+
+    @Test
+    void list_subcategoryFilter_delegatesToService() throws Exception {
+        when(expenseService.listByUser(any(), any(), any(), any(), any(), isNull(), eq("Groceries"), isNull()))
+            .thenReturn(new com.novelosoftware.expenses.dto.CursorPageResponse<>(List.of(), null, 20));
+
+        mockMvc.perform(get("/expenses")
+                .param("user_id", "user-1")
+                .param("subcategory", "Groceries"))
+            .andExpect(status().isOk());
+
+        verify(expenseService).listByUser(eq("user-1"), isNull(), isNull(), isNull(), isNull(),
+            isNull(), eq("Groceries"), isNull());
+    }
+
+    @Test
+    void list_accountIdFilter_delegatesToService() throws Exception {
+        when(expenseService.listByUser(any(), any(), any(), any(), any(), isNull(), isNull(), eq(3L)))
+            .thenReturn(new com.novelosoftware.expenses.dto.CursorPageResponse<>(List.of(), null, 20));
+
+        mockMvc.perform(get("/expenses")
+                .param("user_id", "user-1")
+                .param("account_id", "3"))
+            .andExpect(status().isOk());
+
+        verify(expenseService).listByUser(eq("user-1"), isNull(), isNull(), isNull(), isNull(),
+            isNull(), isNull(), eq(3L));
+    }
+
+    @Test
+    void list_categoryAndSubcategoryBothProvided_returns400() throws Exception {
+        when(expenseService.listByUser(any(), any(), any(), any(), any(), eq("Food"), eq("Groceries"), isNull()))
+            .thenThrow(com.novelosoftware.expenses.exceptions.ExpenseServiceExceptions
+                .createValidationException("category and subcategory are mutually exclusive; provide at most one"));
+
+        mockMvc.perform(get("/expenses")
+                .param("user_id", "user-1")
+                .param("category", "Food")
+                .param("subcategory", "Groceries"))
+            .andExpect(status().isBadRequest());
+    }
 
     private Expense anExpense(Long id) {
         return new Expense(

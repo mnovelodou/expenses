@@ -195,6 +195,120 @@ class ExpenseControllerIT extends BaseIT {
             .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
     }
 
+    // -------------------------------------------------------------------------
+    // GET /expenses — optional filters
+    // -------------------------------------------------------------------------
+
+    @Test
+    void list_filterByCategory_returnsOnlyMatchingExpenses() throws Exception {
+        // RESTAURANT → category GENERAL; GROCERIES → category GROCERIES
+        createExpenseWithSubcategoryOnDate(firstAccountId, USER, "2026-05-10", "RESTAURANT");
+        createExpenseWithSubcategoryOnDate(firstAccountId, USER, "2026-05-15", "GROCERIES");
+
+        mockMvc.perform(get("/expenses")
+                .param("user_id", USER)
+                .param("start_date", "2026-05-01")
+                .param("end_date", "2026-05-31")
+                .param("category", "GROCERIES"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content.length()").value(1))
+            .andExpect(jsonPath("$.content[0].subCategory").value("GROCERIES"));
+    }
+
+    @Test
+    void list_filterBySubcategory_returnsOnlyMatchingExpenses() throws Exception {
+        createExpenseWithSubcategoryOnDate(firstAccountId, USER, "2026-05-10", "RESTAURANT");
+        createExpenseWithSubcategoryOnDate(firstAccountId, USER, "2026-05-15", "GROCERIES");
+
+        mockMvc.perform(get("/expenses")
+                .param("user_id", USER)
+                .param("start_date", "2026-05-01")
+                .param("end_date", "2026-05-31")
+                .param("subcategory", "GROCERIES"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content.length()").value(1))
+            .andExpect(jsonPath("$.content[0].subCategory").value("GROCERIES"));
+    }
+
+    @Test
+    void list_filterByAccountId_returnsOnlyMatchingExpenses() throws Exception {
+        createExpenseOnDate(firstAccountId, USER, "2026-05-10");
+        createExpenseOnDate(secondAccountId, USER, "2026-05-15");
+
+        mockMvc.perform(get("/expenses")
+                .param("user_id", USER)
+                .param("start_date", "2026-05-01")
+                .param("end_date", "2026-05-31")
+                .param("account_id", String.valueOf(firstAccountId)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content.length()").value(1))
+            .andExpect(jsonPath("$.content[0].accountId").value(firstAccountId));
+    }
+
+    @Test
+    void list_filterBySubcategoryAndAccountId_returnsOnlyMatchingExpenses() throws Exception {
+        createExpenseWithSubcategoryOnDate(firstAccountId, USER, "2026-05-10", "GROCERIES");
+        createExpenseWithSubcategoryOnDate(firstAccountId, USER, "2026-05-12", "RESTAURANT");
+        createExpenseWithSubcategoryOnDate(secondAccountId, USER, "2026-05-14", "GROCERIES");
+
+        mockMvc.perform(get("/expenses")
+                .param("user_id", USER)
+                .param("start_date", "2026-05-01")
+                .param("end_date", "2026-05-31")
+                .param("subcategory", "GROCERIES")
+                .param("account_id", String.valueOf(firstAccountId)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content.length()").value(1))
+            .andExpect(jsonPath("$.content[0].subCategory").value("GROCERIES"))
+            .andExpect(jsonPath("$.content[0].accountId").value(firstAccountId));
+    }
+
+    @Test
+    void list_categoryAndSubcategoryBothProvided_returns400() throws Exception {
+        mockMvc.perform(get("/expenses")
+                .param("user_id", USER)
+                .param("start_date", "2026-05-01")
+                .param("end_date", "2026-05-31")
+                .param("category", "GENERAL")
+                .param("subcategory", "RESTAURANT"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+    }
+
+    @Test
+    void list_filterByCategory_withCursorPagination_works() throws Exception {
+        // Create 3 GROCERIES expenses in range
+        createExpenseWithSubcategoryOnDate(firstAccountId, USER, "2026-05-10", "GROCERIES");
+        createExpenseWithSubcategoryOnDate(firstAccountId, USER, "2026-05-15", "GROCERIES");
+        createExpenseWithSubcategoryOnDate(firstAccountId, USER, "2026-05-20", "GROCERIES");
+        // Create a non-matching expense that should not appear
+        createExpenseWithSubcategoryOnDate(firstAccountId, USER, "2026-05-18", "RESTAURANT");
+
+        String firstPageResponse = mockMvc.perform(get("/expenses")
+                .param("user_id", USER)
+                .param("start_date", "2026-05-01")
+                .param("end_date", "2026-05-31")
+                .param("category", "GROCERIES")
+                .param("limit", "2"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content.length()").value(2))
+            .andExpect(jsonPath("$.nextCursor").isString())
+            .andReturn().getResponse().getContentAsString();
+
+        String nextCursor = objectMapper.readTree(firstPageResponse).path("nextCursor").asText();
+
+        mockMvc.perform(get("/expenses")
+                .param("user_id", USER)
+                .param("start_date", "2026-05-01")
+                .param("end_date", "2026-05-31")
+                .param("category", "GROCERIES")
+                .param("limit", "2")
+                .param("cursor", nextCursor))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content.length()").value(1))
+            .andExpect(jsonPath("$.nextCursor").doesNotExist());
+    }
+
     @Test
     void list_resultsAreInDescendingOrder() throws Exception {
         createExpenseOnDate(firstAccountId, USER, "2026-05-10");

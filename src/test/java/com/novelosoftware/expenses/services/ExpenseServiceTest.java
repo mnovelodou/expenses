@@ -60,40 +60,40 @@ public class ExpenseServiceTest {
     private static final Long ACCOUNT_ID = 543412L;
 
     private static final Expense VALID_NEW_EXPENSE = new Expense(
-        null, 
+        null,
         LocalDate.of(2026, 5, 25),
         ACCOUNT_ID,
-        new BigDecimal("1000.00"), 
-        "Expensive Tacos", 
-        SubCategory.RESTAURANT, 
+        new BigDecimal("1000.00"),
+        "Expensive Tacos",
+        SubCategory.RESTAURANT,
         "user-1");
 
     private static final ExpenseEntity MAPPEED_ENTITY = new ExpenseEntity(
-        null, 
+        null,
         LocalDate.of(2026, 5, 25),
         ACCOUNT_ID,
-        new BigDecimal("1000.00"), 
-        "Expensive Tacos", 
+        new BigDecimal("1000.00"),
+        "Expensive Tacos",
         CategoryMapper.getCategory(SubCategory.RESTAURANT).name(),
         SubCategory.RESTAURANT.name(),
         "user-1");
 
     private static final ExpenseEntity CREATED_ENTITY = new ExpenseEntity(
-        EXPENSE_ID, 
+        EXPENSE_ID,
         LocalDate.of(2026, 5, 25),
         ACCOUNT_ID,
-        new BigDecimal("1000.00"), 
-        "Expensive Tacos", 
+        new BigDecimal("1000.00"),
+        "Expensive Tacos",
         CategoryMapper.getCategory(SubCategory.RESTAURANT).name(),
         SubCategory.RESTAURANT.name(),
         "user-1");
 
     private static final Expense CREATED_DTO = new Expense(
-        EXPENSE_ID, 
+        EXPENSE_ID,
         LocalDate.of(2026, 5, 25),
         ACCOUNT_ID,
-        new BigDecimal("1000.00"), 
-        "Expensive Tacos", 
+        new BigDecimal("1000.00"),
+        "Expensive Tacos",
         SubCategory.RESTAURANT,
         "user-1");
 
@@ -148,11 +148,11 @@ public class ExpenseServiceTest {
         when(accountService.getById(VALID_NEW_EXPENSE.accountId())).thenReturn(VALID_ACCOUNT.toBuilder()
             .createdBy("user-2")
             .build());
-        
+
         assertThrows(UnauthorizedExpenseException.class, () -> service.create(request));
     }
 
-    @Test 
+    @Test
     void update_happyPath() {
         ExpenseEntity existingExpense = MAPPEED_ENTITY.toBuilder()
             .expenseId(EXPENSE_ID)
@@ -161,7 +161,7 @@ public class ExpenseServiceTest {
         ExpenseEntity updatedExpenseEntity = existingExpense.toBuilder()
             .amount(new BigDecimal("100.00"))
             .build();
-        
+
         when(accountService.getById(anyLong())).thenReturn(VALID_ACCOUNT);
         when(repo.get(anyLong())).thenReturn(Optional.of(existingExpense));
         when(repo.update(anyLong(), any(ExpenseEntity.class))).thenReturn(Optional.of(updatedExpenseEntity));
@@ -184,13 +184,13 @@ public class ExpenseServiceTest {
             EXPENSE_ID, new UpdateExpenseRequest(UPDATED_EXPENSE)));
     }
 
-    @Test 
+    @Test
     void update_unauthorizedExpense() {
         ExpenseEntity existingExpense = MAPPEED_ENTITY.toBuilder()
             .expenseId(EXPENSE_ID)
             .createdBy("user-2")
             .build();
-        
+
         when(accountService.getById(anyLong())).thenReturn(VALID_ACCOUNT);
         when(repo.get(anyLong())).thenReturn(Optional.of(existingExpense));
 
@@ -217,79 +217,79 @@ public class ExpenseServiceTest {
     static Stream<Arguments> invalidExpenses() {
         return Stream.of(
             Arguments.of(
-                "invalid_expense_date", 
+                "invalid_expense_date",
                 new Expense(
-                    null, 
+                    null,
                     null,
                     ACCOUNT_ID,
-                    new BigDecimal("1000.00"), 
-                    "Expensive Tacos", 
-                    SubCategory.RESTAURANT, 
+                    new BigDecimal("1000.00"),
+                    "Expensive Tacos",
+                    SubCategory.RESTAURANT,
                     "user-1")),
             Arguments.of(
                 "invalid_account_id",
                 new Expense(
-                    null, 
+                    null,
                     LocalDate.of(2026, 5, 25),
                     null,
-                    new BigDecimal("1000.00"), 
-                    "Expensive Tacos", 
-                    SubCategory.RESTAURANT, 
+                    new BigDecimal("1000.00"),
+                    "Expensive Tacos",
+                    SubCategory.RESTAURANT,
                     "user-1")),
             Arguments.of(
                 "invalid_account_amount",
                 new Expense(
-                    null, 
+                    null,
                     LocalDate.of(2026, 5, 25),
                     ACCOUNT_ID,
-                    null, 
-                    "Expensive Tacos", 
-                    SubCategory.RESTAURANT, 
+                    null,
+                    "Expensive Tacos",
+                    SubCategory.RESTAURANT,
                     "user-1")),
             Arguments.of(
                 "null_description",
                 new Expense(
-                    null, 
+                    null,
                     LocalDate.of(2026, 5, 25),
                     ACCOUNT_ID,
-                    new BigDecimal("1000.00"), 
-                    null, 
-                    SubCategory.RESTAURANT, 
+                    new BigDecimal("1000.00"),
+                    null,
+                    SubCategory.RESTAURANT,
                     "user-1")),
             Arguments.of(
                 "empty_description",
                 new Expense(
-                    null, 
+                    null,
                     LocalDate.of(2026, 5, 25),
                     ACCOUNT_ID,
-                    new BigDecimal("1000.00"), 
-                    "", 
-                    SubCategory.RESTAURANT, 
+                    new BigDecimal("1000.00"),
+                    "",
+                    SubCategory.RESTAURANT,
                     "user-1")),
             Arguments.of(
                 "invalid_subcategory",
                 new Expense(
-                    null, 
+                    null,
                     LocalDate.of(2026, 5, 25),
                     ACCOUNT_ID,
-                    new BigDecimal("1000.00"), 
-                    "Expensive Tacos", 
-                    null, 
+                    new BigDecimal("1000.00"),
+                    "Expensive Tacos",
+                    null,
                     "user-1")),
             Arguments.of(
                 "null_created_by",
                 new Expense(
-                    null, 
+                    null,
                     LocalDate.of(2026, 5, 25),
                     ACCOUNT_ID,
-                    new BigDecimal("1000.00"), 
-                    "Expensive Tacos", 
-                    SubCategory.RESTAURANT, 
+                    new BigDecimal("1000.00"),
+                    "Expensive Tacos",
+                    SubCategory.RESTAURANT,
                     null)),
             Arguments.of(
                 "empty_creted_by",
                 new Expense(
-                    null, 
+                    null,
                     LocalDate.of(2026, 5, 25),
                     ACCOUNT_ID,
                     new BigDecimal("1000.00"),
@@ -305,10 +305,11 @@ public class ExpenseServiceTest {
 
     @Test
     void listByUser_bothDatesAbsent_defaultsToLastCalendarMonth() {
-        when(repo.findByUserCursor(eq("user-1"), eq(LAST_MONTH_START), eq(LAST_MONTH_END), eq(20), isNull()))
+        when(repo.findByFiltersCursor(eq("user-1"), eq(LAST_MONTH_START), eq(LAST_MONTH_END),
+            isNull(), isNull(), isNull(), eq(20), isNull()))
             .thenReturn(List.of());
 
-        CursorPageResponse<Expense> result = service.listByUser("user-1", null, null, null, null);
+        CursorPageResponse<Expense> result = service.listByUser("user-1", null, null, null, null, null, null, null);
 
         assertNotNull(result);
         assertNull(result.nextCursor());
@@ -319,10 +320,11 @@ public class ExpenseServiceTest {
         LocalDate start = LocalDate.of(2026, 4, 1);
         LocalDate expectedEnd = start.plusMonths(1);
 
-        when(repo.findByUserCursor(eq("user-1"), eq(start), eq(expectedEnd), anyInt(), isNull()))
+        when(repo.findByFiltersCursor(eq("user-1"), eq(start), eq(expectedEnd),
+            isNull(), isNull(), isNull(), anyInt(), isNull()))
             .thenReturn(List.of());
 
-        service.listByUser("user-1", start, null, null, null);
+        service.listByUser("user-1", start, null, null, null, null, null, null);
     }
 
     @Test
@@ -330,10 +332,11 @@ public class ExpenseServiceTest {
         LocalDate end = LocalDate.of(2026, 5, 1);
         LocalDate expectedStart = end.minusMonths(1);
 
-        when(repo.findByUserCursor(eq("user-1"), eq(expectedStart), eq(end), anyInt(), isNull()))
+        when(repo.findByFiltersCursor(eq("user-1"), eq(expectedStart), eq(end),
+            isNull(), isNull(), isNull(), anyInt(), isNull()))
             .thenReturn(List.of());
 
-        service.listByUser("user-1", null, end, null, null);
+        service.listByUser("user-1", null, end, null, null, null, null, null);
     }
 
     // -------------------------------------------------------------------------
@@ -344,23 +347,25 @@ public class ExpenseServiceTest {
     @ValueSource(ints = {-5, -1, 0, 101, 200})
     void listByUser_invalidLimit_throws400(int limit) {
         assertThrows(ExpenseValidationException.class,
-            () -> service.listByUser("user-1", null, null, limit, null));
+            () -> service.listByUser("user-1", null, null, limit, null, null, null, null));
     }
 
     @Test
     void listByUser_limitAtMaximum_isAllowed() {
-        when(repo.findByUserCursor(eq("user-1"), any(), any(), eq(100), isNull()))
+        when(repo.findByFiltersCursor(eq("user-1"), any(), any(),
+            isNull(), isNull(), isNull(), eq(100), isNull()))
             .thenReturn(List.of());
 
-        service.listByUser("user-1", null, null, 100, null);
+        service.listByUser("user-1", null, null, 100, null, null, null, null);
     }
 
     @Test
     void listByUser_limitAbsent_defaultsTo20() {
-        when(repo.findByUserCursor(eq("user-1"), any(), any(), eq(20), isNull()))
+        when(repo.findByFiltersCursor(eq("user-1"), any(), any(),
+            isNull(), isNull(), isNull(), eq(20), isNull()))
             .thenReturn(List.of());
 
-        service.listByUser("user-1", null, null, null, null);
+        service.listByUser("user-1", null, null, null, null, null, null, null);
     }
 
     // -------------------------------------------------------------------------
@@ -374,7 +379,57 @@ public class ExpenseServiceTest {
         String cursor = ExpenseCursor.encode(LocalDate.of(2026, 3, 1), 10L);
 
         assertThrows(InvalidCursorException.class,
-            () -> service.listByUser("user-1", start, end, null, cursor));
+            () -> service.listByUser("user-1", start, end, null, cursor, null, null, null));
+    }
+
+    // -------------------------------------------------------------------------
+    // listByUser — filter mutual exclusivity
+    // -------------------------------------------------------------------------
+
+    @Test
+    void listByUser_categoryAndSubcategoryBothProvided_throws400() {
+        assertThrows(ExpenseValidationException.class,
+            () -> service.listByUser("user-1", null, null, null, null, "Food", "Groceries", null));
+    }
+
+    // -------------------------------------------------------------------------
+    // listByUser — filters passed through to repo
+    // -------------------------------------------------------------------------
+
+    @Test
+    void listByUser_categoryFilter_passedToRepo() {
+        when(repo.findByFiltersCursor(eq("user-1"), any(), any(),
+            eq("Food"), isNull(), isNull(), anyInt(), isNull()))
+            .thenReturn(List.of());
+
+        service.listByUser("user-1", null, null, null, null, "Food", null, null);
+
+        verify(repo).findByFiltersCursor(eq("user-1"), any(), any(),
+            eq("Food"), isNull(), isNull(), anyInt(), isNull());
+    }
+
+    @Test
+    void listByUser_subcategoryFilter_passedToRepo() {
+        when(repo.findByFiltersCursor(eq("user-1"), any(), any(),
+            isNull(), eq("Groceries"), isNull(), anyInt(), isNull()))
+            .thenReturn(List.of());
+
+        service.listByUser("user-1", null, null, null, null, null, "Groceries", null);
+
+        verify(repo).findByFiltersCursor(eq("user-1"), any(), any(),
+            isNull(), eq("Groceries"), isNull(), anyInt(), isNull());
+    }
+
+    @Test
+    void listByUser_accountIdFilter_passedToRepo() {
+        when(repo.findByFiltersCursor(eq("user-1"), any(), any(),
+            isNull(), isNull(), eq(3L), anyInt(), isNull()))
+            .thenReturn(List.of());
+
+        service.listByUser("user-1", null, null, null, null, null, null, 3L);
+
+        verify(repo).findByFiltersCursor(eq("user-1"), any(), any(),
+            isNull(), isNull(), eq(3L), anyInt(), isNull());
     }
 
     // -------------------------------------------------------------------------
@@ -390,10 +445,11 @@ public class ExpenseServiceTest {
             anEntity(10L, LocalDate.of(2026, 4, 20)),
             anEntity(9L,  LocalDate.of(2026, 4, 15)));
 
-        when(repo.findByUserCursor(eq("user-1"), eq(start), eq(end), eq(2), isNull()))
+        when(repo.findByFiltersCursor(eq("user-1"), eq(start), eq(end),
+            isNull(), isNull(), isNull(), eq(2), isNull()))
             .thenReturn(entities);
 
-        CursorPageResponse<Expense> result = service.listByUser("user-1", start, end, 2, null);
+        CursorPageResponse<Expense> result = service.listByUser("user-1", start, end, 2, null, null, null, null);
 
         assertNotNull(result.nextCursor());
     }
@@ -403,10 +459,11 @@ public class ExpenseServiceTest {
         LocalDate start = LocalDate.of(2026, 4, 1);
         LocalDate end = LocalDate.of(2026, 5, 1);
 
-        when(repo.findByUserCursor(eq("user-1"), eq(start), eq(end), eq(20), isNull()))
+        when(repo.findByFiltersCursor(eq("user-1"), eq(start), eq(end),
+            isNull(), isNull(), isNull(), eq(20), isNull()))
             .thenReturn(List.of(anEntity(5L, LocalDate.of(2026, 4, 10))));
 
-        CursorPageResponse<Expense> result = service.listByUser("user-1", start, end, null, null);
+        CursorPageResponse<Expense> result = service.listByUser("user-1", start, end, null, null, null, null, null);
 
         assertNull(result.nextCursor());
     }
