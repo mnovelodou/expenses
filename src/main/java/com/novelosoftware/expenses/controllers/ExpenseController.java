@@ -1,22 +1,26 @@
 package com.novelosoftware.expenses.controllers;
 
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.novelosoftware.expenses.dto.CreateExpenseRequest;
 import com.novelosoftware.expenses.dto.CreateExpenseResponse;
+import com.novelosoftware.expenses.dto.CursorPageResponse;
 import com.novelosoftware.expenses.dto.Expense;
 import com.novelosoftware.expenses.dto.UpdateExpenseRequest;
 import com.novelosoftware.expenses.dto.UpdateExpenseResponse;
 import com.novelosoftware.expenses.services.ExpenseService;
 
-import jakarta.websocket.server.PathParam;
+import java.time.LocalDate;
 
 /**
  * ExpenseController contains APIs for Expense entities.
@@ -24,11 +28,33 @@ import jakarta.websocket.server.PathParam;
 @RestController
 @RequestMapping("/expenses")
 public class ExpenseController {
-    
+
     private final ExpenseService expenseService;
 
     public ExpenseController(ExpenseService expenseService) {
         this.expenseService = expenseService;
+    }
+
+    /**
+     * Lists expenses for a user with forward cursor pagination.
+     *
+     * @param userId    required; the user whose expenses to list
+     * @param startDate optional start of date window; defaults to first day of last month
+     * @param endDate   optional end of date window; defaults to last day of last month
+     * @param limit     optional page size (1–100); defaults to 20
+     * @param cursor    optional opaque cursor from a previous response's {@code nextCursor}
+     * @return a page of expenses and an optional next-page cursor
+     */
+    @GetMapping
+    public CursorPageResponse<Expense> list(
+            @RequestParam(value = "user_id", required = false) String userId,
+            @RequestParam(value = "start_date", required = false)
+                @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(value = "end_date", required = false)
+                @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(value = "limit", required = false) Integer limit,
+            @RequestParam(value = "cursor", required = false) String cursor) {
+        return expenseService.listByUser(userId, startDate, endDate, limit, cursor);
     }
 
     /**

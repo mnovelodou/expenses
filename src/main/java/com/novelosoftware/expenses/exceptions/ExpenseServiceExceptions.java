@@ -59,4 +59,23 @@ public final class ExpenseServiceExceptions {
             super(message);
         }
     }
+
+    /**
+     * Creates an InvalidCursorException for a malformed cursor token.
+     *
+     * @return an InvalidCursorException
+     */
+    public static InvalidCursorException createInvalidCursorException(String message) {
+        return new InvalidCursorException(message);
+    }
+
+    /**
+     * Thrown when a cursor token is malformed or its encoded date falls outside
+     * the requested date range.
+     */
+    public static final class InvalidCursorException extends RuntimeException {
+        private InvalidCursorException(String message) {
+            super(message);
+        }
+    }
 }

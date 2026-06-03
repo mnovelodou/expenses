@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS expenses (
     FOREIGN KEY (account_id) REFERENCES accounts(account_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_expenses_user_date        ON expenses(created_by, expense_date);
+CREATE INDEX IF NOT EXISTS idx_expenses_user_date        ON expenses(created_by, expense_date DESC, expense_id DESC);
 CREATE INDEX IF NOT EXISTS idx_expenses_account_date     ON expenses(account_id, expense_date);
 CREATE INDEX IF NOT EXISTS idx_expenses_category_date    ON expenses(created_by, category, expense_date);
 CREATE INDEX IF NOT EXISTS idx_expenses_subcategory_date ON expenses(created_by, subcategory, expense_date);

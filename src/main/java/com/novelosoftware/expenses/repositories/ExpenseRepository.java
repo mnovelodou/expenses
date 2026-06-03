@@ -18,6 +18,21 @@ public class ExpenseRepository {
 
     static final String GET_SQL = "SELECT * FROM expenses WHERE expense_id = ?";
 
+    static final String FIND_BY_USER_CURSOR_SQL = """
+        SELECT * FROM expenses
+        WHERE created_by = ? AND expense_date BETWEEN ? AND ?
+        ORDER BY expense_date DESC, expense_id DESC
+        LIMIT ?
+        """;
+
+    static final String FIND_BY_USER_CURSOR_WITH_CURSOR_SQL = """
+        SELECT * FROM expenses
+        WHERE created_by = ? AND expense_date BETWEEN ? AND ?
+          AND (expense_date < ? OR (expense_date = ? AND expense_id < ?))
+        ORDER BY expense_date DESC, expense_id DESC
+        LIMIT ?
+        """;
+
     static final RowMapper<ExpenseEntity> MAPPER = (rs, row) -> new ExpenseEntity(
         rs.getLong("expense_id"),
         rs.getObject("expense_date", LocalDate.class),
@@ -152,6 +167,33 @@ public class ExpenseRepository {
             LIMIT ? OFFSET ?
             """;
         return jdbc.query(sql, MAPPER, userId, accountId, startDate, endDate, limit, offset);
+    }
+
+    /**
+     * Returns a page of expenses for a given user within a date range, ordered by
+     * {@code expense_date DESC, expense_id DESC}.
+     *
+     * <p>When {@code cursor} is provided only expenses strictly older than the cursor
+     * position are returned, enabling forward pagination.
+     *
+     * @param userId    the user whose expenses to fetch
+     * @param startDate inclusive start of the date range
+     * @param endDate   inclusive end of the date range
+     * @param limit     maximum number of results to return
+     * @param cursor    optional cursor from the previous page; {@code null} for the first page
+     * @return list of expense entities for the requested page
+     */
+    public List<ExpenseEntity> findByUserCursor(String userId, LocalDate startDate, LocalDate endDate,
+                                                int limit,
+                                                com.novelosoftware.expenses.util.ExpenseCursor.DecodedCursor cursor) {
+        if (cursor == null) {
+            return jdbc.query(FIND_BY_USER_CURSOR_SQL, MAPPER, userId, startDate, endDate, limit);
+        } else {
+            return jdbc.query(FIND_BY_USER_CURSOR_WITH_CURSOR_SQL, MAPPER,
+                userId, startDate, endDate,
+                cursor.date(), cursor.date(), cursor.id(),
+                limit);
+        }
     }
 
     public Optional<ExpenseEntity> get(Long expenseId) {

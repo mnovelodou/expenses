@@ -59,12 +59,16 @@ public abstract class BaseIT {
     }
 
     protected long createExpense(long accountId, String userId) throws Exception {
+        return createExpenseOnDate(accountId, userId, "2026-01-15");
+    }
+
+    protected long createExpenseOnDate(long accountId, String userId, String date) throws Exception {
         String response = mockMvc.perform(post("/expenses")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                    { "value": { "expenseDate": "2026-01-15", "accountId": %d, "amount": 42.50,
+                    { "value": { "expenseDate": "%s", "accountId": %d, "amount": 42.50,
                       "description": "Test expense", "subCategory": "RESTAURANT", "createdBy": "%s" } }
-                    """.formatted(accountId, userId)))
+                    """.formatted(date, accountId, userId)))
             .andExpect(status().isCreated())
             .andReturn().getResponse().getContentAsString();
         return objectMapper.readTree(response).path("value").path("expenseId").asLong();

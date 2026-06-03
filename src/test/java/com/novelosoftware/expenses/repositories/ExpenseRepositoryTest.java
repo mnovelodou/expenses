@@ -210,6 +210,50 @@ class ExpenseRepositoryTest {
     }
 
     // -------------------------------------------------------------------------
+    // findByUserCursor
+    // -------------------------------------------------------------------------
+
+    @Test
+    void findByUserCursor_firstPage_usesFirstPageSql() {
+        when(jdbc.query(eq(ExpenseRepository.FIND_BY_USER_CURSOR_SQL), any(RowMapper.class),
+            eq("user-1"), eq(START), eq(END), eq(20)))
+            .thenReturn(List.of(anEntity(1L)));
+
+        var result = repo.findByUserCursor("user-1", START, END, 20, null);
+
+        assertEquals(1, result.size());
+    }
+
+    @Test
+    void findByUserCursor_withCursor_usesCursorSql() {
+        LocalDate cursorDate = LocalDate.of(2026, 1, 15);
+        long cursorId = 5L;
+        var cursor = new com.novelosoftware.expenses.util.ExpenseCursor.DecodedCursor(cursorDate, cursorId);
+
+        when(jdbc.query(eq(ExpenseRepository.FIND_BY_USER_CURSOR_WITH_CURSOR_SQL), any(RowMapper.class),
+            eq("user-1"), eq(START), eq(END),
+            eq(cursorDate), eq(cursorDate), eq(cursorId),
+            eq(20)))
+            .thenReturn(List.of(anEntity(3L)));
+
+        var result = repo.findByUserCursor("user-1", START, END, 20, cursor);
+
+        assertEquals(1, result.size());
+        assertEquals(3L, result.get(0).expenseId());
+    }
+
+    @Test
+    void findByUserCursor_noResults_returnsEmptyList() {
+        when(jdbc.query(eq(ExpenseRepository.FIND_BY_USER_CURSOR_SQL), any(RowMapper.class),
+            eq("user-1"), eq(START), eq(END), eq(20)))
+            .thenReturn(List.of());
+
+        var result = repo.findByUserCursor("user-1", START, END, 20, null);
+
+        assertTrue(result.isEmpty());
+    }
+
+    // -------------------------------------------------------------------------
     // Helper
     // -------------------------------------------------------------------------
 
