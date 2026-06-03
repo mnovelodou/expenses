@@ -2,6 +2,8 @@ package com.novelosoftware.expenses.controllers;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -10,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
@@ -184,6 +187,63 @@ public class ExpenseControllerTest {
                 status().isInternalServerError()));
     }
 
+
+    // -------------------------------------------------------------------------
+    // GET /expenses — filter params (parameterized)
+    // -------------------------------------------------------------------------
+
+    @ParameterizedTest(name = "list_filter_{0}_delegatesToService")
+    @MethodSource("filterCombinations")
+    void list_filter_delegatesToService(
+            String testName,
+            String[] queryParams,
+            String expectedCategory,
+            String expectedSubcategory,
+            Long expectedAccountId) throws Exception {
+
+        when(expenseService.listByUser(any(), any(), any(), any(), any(),
+            expectedCategory == null ? isNull() : eq(expectedCategory),
+            expectedSubcategory == null ? isNull() : eq(expectedSubcategory),
+            expectedAccountId == null ? isNull() : eq(expectedAccountId)))
+            .thenReturn(new com.novelosoftware.expenses.dto.CursorPageResponse<>(List.of(), null, 20));
+
+        var request = get("/expenses").param("user_id", "user-1");
+        for (int i = 0; i < queryParams.length; i += 2) {
+            request = request.param(queryParams[i], queryParams[i + 1]);
+        }
+
+        mockMvc.perform(request).andExpect(status().isOk());
+
+        verify(expenseService).listByUser(eq("user-1"), isNull(), isNull(), isNull(), isNull(),
+            expectedCategory == null ? isNull() : eq(expectedCategory),
+            expectedSubcategory == null ? isNull() : eq(expectedSubcategory),
+            expectedAccountId == null ? isNull() : eq(expectedAccountId));
+    }
+
+    static Stream<Arguments> filterCombinations() {
+        return Stream.of(
+            Arguments.of("no_filters",      new String[]{},                                     null,        null,         null),
+            Arguments.of("category",         new String[]{"category", "Food"},                   "Food",      null,         null),
+            Arguments.of("subcategory",      new String[]{"subcategory", "Groceries"},            null,        "Groceries",  null),
+            Arguments.of("account_id",       new String[]{"account_id", "3"},                    null,        null,         3L),
+            Arguments.of("cat_and_acct",     new String[]{"category", "Food", "account_id", "3"}, "Food",     null,         3L),
+            Arguments.of("sub_and_acct",     new String[]{"subcategory", "Groceries", "account_id", "3"}, null, "Groceries", 3L)
+        );
+    }
+
+    @Test
+    void list_categoryAndSubcategoryBothProvided_returns400() throws Exception {
+        when(expenseService.listByUser(any(), any(), any(), any(), any(),
+            eq("Food"), eq("Groceries"), isNull()))
+            .thenThrow(com.novelosoftware.expenses.exceptions.ExpenseServiceExceptions
+                .createValidationException("category and subcategory are mutually exclusive; provide at most one"));
+
+        mockMvc.perform(get("/expenses")
+                .param("user_id", "user-1")
+                .param("category", "Food")
+                .param("subcategory", "Groceries"))
+            .andExpect(status().isBadRequest());
+    }
 
     private Expense anExpense(Long id) {
         return new Expense(

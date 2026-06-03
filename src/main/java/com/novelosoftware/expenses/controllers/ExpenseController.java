@@ -36,13 +36,19 @@ public class ExpenseController {
     }
 
     /**
-     * Lists expenses for a user with forward cursor pagination.
+     * Lists expenses for a user with forward cursor pagination and optional filters.
      *
-     * @param userId    required; the user whose expenses to list
-     * @param startDate optional start of date window; defaults to first day of last month
-     * @param endDate   optional end of date window; defaults to last day of last month
-     * @param limit     optional page size (1–100); defaults to 20
-     * @param cursor    optional opaque cursor from a previous response's {@code nextCursor}
+     * <p>{@code category} and {@code subcategory} are mutually exclusive; supplying both
+     * results in HTTP 400. {@code account_id} may be combined with either.
+     *
+     * @param userId      required; the user whose expenses to list
+     * @param startDate   optional start of date window; defaults to first day of last month
+     * @param endDate     optional end of date window; defaults to last day of last month
+     * @param limit       optional page size (1–100); defaults to 20
+     * @param cursor      optional opaque cursor from a previous response's {@code nextCursor}
+     * @param category    optional category filter; mutually exclusive with subcategory
+     * @param subcategory optional subcategory filter; mutually exclusive with category
+     * @param accountId   optional account filter
      * @return a page of expenses and an optional next-page cursor
      */
     @GetMapping
@@ -53,8 +59,12 @@ public class ExpenseController {
             @RequestParam(value = "end_date", required = false)
                 @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(value = "limit", required = false) Integer limit,
-            @RequestParam(value = "cursor", required = false) String cursor) {
-        return expenseService.listByUser(userId, startDate, endDate, limit, cursor);
+            @RequestParam(value = "cursor", required = false) String cursor,
+            @RequestParam(value = "category", required = false) String category,
+            @RequestParam(value = "subcategory", required = false) String subcategory,
+            @RequestParam(value = "account_id", required = false) Long accountId) {
+
+        return expenseService.listByUser(userId, startDate, endDate, limit, cursor, category, subcategory, accountId);
     }
 
     /**

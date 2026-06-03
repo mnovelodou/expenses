@@ -88,7 +88,8 @@ public class ExpenseService {
     }
 
     /**
-     * Returns a cursor-paginated list of expenses for the given user within the specified date window.
+     * Returns a cursor-paginated list of expenses for the given user within the specified date window,
+     * with optional filters on category, subcategory, and accountId.
      *
      * <p>Date defaults (each param is resolved independently):
      * <ul>
@@ -97,20 +98,34 @@ public class ExpenseService {
      *   <li>Only {@code endDate}   → {@code startDate = endDate - 1 month}</li>
      * </ul>
      *
+     * <p>{@code category} and {@code subcategory} are mutually exclusive — supplying both
+     * results in a validation error. {@code accountId} may be combined with either.
+     *
      * @param userId      required; the user whose expenses to list
      * @param startDate   optional start of the date window
      * @param endDate     optional end of the date window
      * @param limit       optional page size; defaults to 20, max 100
      * @param cursorToken optional opaque cursor from a previous response
+     * @param category    optional category filter; mutually exclusive with subcategory
+     * @param subcategory optional subcategory filter; mutually exclusive with category
+     * @param accountId   optional account filter
      * @return a page of expenses with an optional next-page cursor
      */
     public CursorPageResponse<Expense> listByUser(String userId,
                                                    LocalDate startDate,
                                                    LocalDate endDate,
                                                    Integer limit,
-                                                   String cursorToken) {
+                                                   String cursorToken,
+                                                   String category,
+                                                   String subcategory,
+                                                   Long accountId) {
         if (userId == null || userId.isBlank()) {
             throw createValidationException("user_id is required");
+        }
+
+        // --- Validate mutually exclusive filters ---
+        if (category != null && subcategory != null) {
+            throw createValidationException("category and subcategory are mutually exclusive; provide at most one");
         }
 
         // --- Resolve and validate date window ---
@@ -135,7 +150,10 @@ public class ExpenseService {
         }
 
         // --- Fetch and map ---
-        List<ExpenseEntity> entities = repo.findByUserCursor(userId, window.startDate(), window.endDate(), resolvedLimit, cursor);
+        List<ExpenseEntity> entities = repo.findByFiltersCursor(
+            userId, window.startDate(), window.endDate(),
+            category, subcategory, accountId,
+            resolvedLimit, cursor);
         List<Expense> expenses = entities.stream().map(ExpenseMapper::toDto).toList();
 
         // --- Build next cursor ---
