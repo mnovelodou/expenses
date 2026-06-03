@@ -7,6 +7,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 
 import java.time.LocalDate;
+import java.time.YearMonth;
+import java.util.List;
+import java.util.stream.Stream;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -50,11 +53,30 @@ class ExpenseControllerIT extends BaseIT {
     }
 
     @Test
-    void list_defaultsToLastMonth_whenNoDatesProvided() throws Exception {
-        mockMvc.perform(get("/expenses")
-                .param("user_id", USER))
+    void list_defaultsToLastMonth_onlyLastMonthExpensesReturned() throws Exception {
+        LocalDate today       = LocalDate.now();
+        LocalDate yesterday   = today.minusDays(1);
+        LocalDate twoDaysAgo  = today.minusDays(2);
+        LocalDate twoMonthsAgo = YearMonth.now().minusMonths(2).atDay(15); // solidly 2 months back
+        LocalDate inLastMonth  = YearMonth.now().minusMonths(1).atDay(15); // solidly in last month
+
+        for (LocalDate date : List.of(today, yesterday, twoDaysAgo, twoMonthsAgo, inLastMonth)) {
+            createExpenseOnDate(firstAccountId, USER, date.toString());
+        }
+
+        // Compute expected count dynamically so the test is robust even when
+        // today-1 or today-2 happen to fall in the previous calendar month
+        // (e.g. when today is the 1st or 2nd of the month).
+        LocalDate windowStart = YearMonth.now().minusMonths(1).atDay(1);
+        LocalDate windowEnd   = YearMonth.now().minusMonths(1).atEndOfMonth();
+        int expectedCount = (int) Stream.of(today, yesterday, twoDaysAgo, twoMonthsAgo, inLastMonth)
+            .filter(d -> !d.isBefore(windowStart) && !d.isAfter(windowEnd))
+            .count();
+
+        mockMvc.perform(get("/expenses").param("user_id", USER))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.content").isArray());
+            .andExpect(jsonPath("$.content").isArray())
+            .andExpect(jsonPath("$.content.length()").value(expectedCount));
     }
 
     @Test
