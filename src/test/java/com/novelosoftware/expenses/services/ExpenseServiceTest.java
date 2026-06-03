@@ -33,7 +33,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.novelosoftware.expenses.dto.Account;
-import com.novelosoftware.expenses.dto.CategoryFilter;
 import com.novelosoftware.expenses.dto.AccountType;
 import com.novelosoftware.expenses.dto.CreateExpenseRequest;
 import com.novelosoftware.expenses.dto.CreateExpenseResponse;
@@ -307,10 +306,10 @@ public class ExpenseServiceTest {
     @Test
     void listByUser_bothDatesAbsent_defaultsToLastCalendarMonth() {
         when(repo.findByFiltersCursor(eq("user-1"), eq(LAST_MONTH_START), eq(LAST_MONTH_END),
-            isNull(), isNull(), eq(20), isNull()))
+            isNull(), isNull(), isNull(), eq(20), isNull()))
             .thenReturn(List.of());
 
-        CursorPageResponse<Expense> result = service.listByUser("user-1", null, null, null, null, null, null);
+        CursorPageResponse<Expense> result = service.listByUser("user-1", null, null, null, null, null, null, null);
 
         assertNotNull(result);
         assertNull(result.nextCursor());
@@ -322,10 +321,10 @@ public class ExpenseServiceTest {
         LocalDate expectedEnd = start.plusMonths(1);
 
         when(repo.findByFiltersCursor(eq("user-1"), eq(start), eq(expectedEnd),
-            isNull(), isNull(), anyInt(), isNull()))
+            isNull(), isNull(), isNull(), anyInt(), isNull()))
             .thenReturn(List.of());
 
-        service.listByUser("user-1", start, null, null, null, null, null);
+        service.listByUser("user-1", start, null, null, null, null, null, null);
     }
 
     @Test
@@ -334,10 +333,10 @@ public class ExpenseServiceTest {
         LocalDate expectedStart = end.minusMonths(1);
 
         when(repo.findByFiltersCursor(eq("user-1"), eq(expectedStart), eq(end),
-            isNull(), isNull(), anyInt(), isNull()))
+            isNull(), isNull(), isNull(), anyInt(), isNull()))
             .thenReturn(List.of());
 
-        service.listByUser("user-1", null, end, null, null, null, null);
+        service.listByUser("user-1", null, end, null, null, null, null, null);
     }
 
     // -------------------------------------------------------------------------
@@ -348,25 +347,25 @@ public class ExpenseServiceTest {
     @ValueSource(ints = {-5, -1, 0, 101, 200})
     void listByUser_invalidLimit_throws400(int limit) {
         assertThrows(ExpenseValidationException.class,
-            () -> service.listByUser("user-1", null, null, limit, null, null, null));
+            () -> service.listByUser("user-1", null, null, limit, null, null, null, null));
     }
 
     @Test
     void listByUser_limitAtMaximum_isAllowed() {
         when(repo.findByFiltersCursor(eq("user-1"), any(), any(),
-            isNull(), isNull(), eq(100), isNull()))
+            isNull(), isNull(), isNull(), eq(100), isNull()))
             .thenReturn(List.of());
 
-        service.listByUser("user-1", null, null, 100, null, null, null);
+        service.listByUser("user-1", null, null, 100, null, null, null, null);
     }
 
     @Test
     void listByUser_limitAbsent_defaultsTo20() {
         when(repo.findByFiltersCursor(eq("user-1"), any(), any(),
-            isNull(), isNull(), eq(20), isNull()))
+            isNull(), isNull(), isNull(), eq(20), isNull()))
             .thenReturn(List.of());
 
-        service.listByUser("user-1", null, null, null, null, null, null);
+        service.listByUser("user-1", null, null, null, null, null, null, null);
     }
 
     // -------------------------------------------------------------------------
@@ -380,7 +379,17 @@ public class ExpenseServiceTest {
         String cursor = ExpenseCursor.encode(LocalDate.of(2026, 3, 1), 10L);
 
         assertThrows(InvalidCursorException.class,
-            () -> service.listByUser("user-1", start, end, null, cursor, null, null));
+            () -> service.listByUser("user-1", start, end, null, cursor, null, null, null));
+    }
+
+    // -------------------------------------------------------------------------
+    // listByUser — filter mutual exclusivity
+    // -------------------------------------------------------------------------
+
+    @Test
+    void listByUser_categoryAndSubcategoryBothProvided_throws400() {
+        assertThrows(ExpenseValidationException.class,
+            () -> service.listByUser("user-1", null, null, null, null, "Food", "Groceries", null));
     }
 
     // -------------------------------------------------------------------------
@@ -389,40 +398,38 @@ public class ExpenseServiceTest {
 
     @Test
     void listByUser_categoryFilter_passedToRepo() {
-        CategoryFilter filter = CategoryFilter.ofCategory("Food");
         when(repo.findByFiltersCursor(eq("user-1"), any(), any(),
-            eq(filter), isNull(), anyInt(), isNull()))
+            eq("Food"), isNull(), isNull(), anyInt(), isNull()))
             .thenReturn(List.of());
 
-        service.listByUser("user-1", null, null, null, null, filter, null);
+        service.listByUser("user-1", null, null, null, null, "Food", null, null);
 
         verify(repo).findByFiltersCursor(eq("user-1"), any(), any(),
-            eq(filter), isNull(), anyInt(), isNull());
+            eq("Food"), isNull(), isNull(), anyInt(), isNull());
     }
 
     @Test
     void listByUser_subcategoryFilter_passedToRepo() {
-        CategoryFilter filter = CategoryFilter.ofSubcategory("Groceries");
         when(repo.findByFiltersCursor(eq("user-1"), any(), any(),
-            eq(filter), isNull(), anyInt(), isNull()))
+            isNull(), eq("Groceries"), isNull(), anyInt(), isNull()))
             .thenReturn(List.of());
 
-        service.listByUser("user-1", null, null, null, null, filter, null);
+        service.listByUser("user-1", null, null, null, null, null, "Groceries", null);
 
         verify(repo).findByFiltersCursor(eq("user-1"), any(), any(),
-            eq(filter), isNull(), anyInt(), isNull());
+            isNull(), eq("Groceries"), isNull(), anyInt(), isNull());
     }
 
     @Test
     void listByUser_accountIdFilter_passedToRepo() {
         when(repo.findByFiltersCursor(eq("user-1"), any(), any(),
-            isNull(), eq(3L), anyInt(), isNull()))
+            isNull(), isNull(), eq(3L), anyInt(), isNull()))
             .thenReturn(List.of());
 
-        service.listByUser("user-1", null, null, null, null, null, 3L);
+        service.listByUser("user-1", null, null, null, null, null, null, 3L);
 
         verify(repo).findByFiltersCursor(eq("user-1"), any(), any(),
-            isNull(), eq(3L), anyInt(), isNull());
+            isNull(), isNull(), eq(3L), anyInt(), isNull());
     }
 
     // -------------------------------------------------------------------------
@@ -439,10 +446,10 @@ public class ExpenseServiceTest {
             anEntity(9L,  LocalDate.of(2026, 4, 15)));
 
         when(repo.findByFiltersCursor(eq("user-1"), eq(start), eq(end),
-            isNull(), isNull(), eq(2), isNull()))
+            isNull(), isNull(), isNull(), eq(2), isNull()))
             .thenReturn(entities);
 
-        CursorPageResponse<Expense> result = service.listByUser("user-1", start, end, 2, null, null, null);
+        CursorPageResponse<Expense> result = service.listByUser("user-1", start, end, 2, null, null, null, null);
 
         assertNotNull(result.nextCursor());
     }
@@ -453,10 +460,10 @@ public class ExpenseServiceTest {
         LocalDate end = LocalDate.of(2026, 5, 1);
 
         when(repo.findByFiltersCursor(eq("user-1"), eq(start), eq(end),
-            isNull(), isNull(), eq(20), isNull()))
+            isNull(), isNull(), isNull(), eq(20), isNull()))
             .thenReturn(List.of(anEntity(5L, LocalDate.of(2026, 4, 10))));
 
-        CursorPageResponse<Expense> result = service.listByUser("user-1", start, end, null, null, null, null);
+        CursorPageResponse<Expense> result = service.listByUser("user-1", start, end, null, null, null, null, null);
 
         assertNull(result.nextCursor());
     }

@@ -12,9 +12,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.novelosoftware.expenses.dto.CategoryFilter;
 import com.novelosoftware.expenses.dto.CreateExpenseRequest;
-import com.novelosoftware.expenses.exceptions.ExpenseServiceExceptions;
 import com.novelosoftware.expenses.dto.CreateExpenseResponse;
 import com.novelosoftware.expenses.dto.CursorPageResponse;
 import com.novelosoftware.expenses.dto.Expense;
@@ -66,19 +64,7 @@ public class ExpenseController {
             @RequestParam(value = "subcategory", required = false) String subcategory,
             @RequestParam(value = "account_id", required = false) Long accountId) {
 
-        if (category != null && subcategory != null) {
-            throw ExpenseServiceExceptions.createValidationException(
-                "category and subcategory are mutually exclusive; provide at most one");
-        }
-
-        CategoryFilter categoryFilter = null;
-        if (category != null) {
-            categoryFilter = CategoryFilter.ofCategory(category);
-        } else if (subcategory != null) {
-            categoryFilter = CategoryFilter.ofSubcategory(subcategory);
-        }
-
-        return expenseService.listByUser(userId, startDate, endDate, limit, cursor, categoryFilter, accountId);
+        return expenseService.listByUser(userId, startDate, endDate, limit, cursor, category, subcategory, accountId);
     }
 
     /**

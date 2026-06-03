@@ -4,7 +4,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.novelosoftware.expenses.dto.Account;
-import com.novelosoftware.expenses.dto.CategoryFilter;
 import com.novelosoftware.expenses.dto.CreateExpenseRequest;
 import com.novelosoftware.expenses.dto.CreateExpenseResponse;
 import com.novelosoftware.expenses.dto.CursorPageResponse;
@@ -99,16 +98,17 @@ public class ExpenseService {
      *   <li>Only {@code endDate}   → {@code startDate = endDate - 1 month}</li>
      * </ul>
      *
-     * <p>{@code category} and {@code subcategory} are mutually exclusive, represented
-     * as a {@link CategoryFilter} union. {@code accountId} may be combined with either.
+     * <p>{@code category} and {@code subcategory} are mutually exclusive — supplying both
+     * results in a validation error. {@code accountId} may be combined with either.
      *
-     * @param userId         required; the user whose expenses to list
-     * @param startDate      optional start of the date window
-     * @param endDate        optional end of the date window
-     * @param limit          optional page size; defaults to 20, max 100
-     * @param cursorToken    optional opaque cursor from a previous response
-     * @param categoryFilter optional category or subcategory filter; {@code null} for no filter
-     * @param accountId      optional account filter
+     * @param userId      required; the user whose expenses to list
+     * @param startDate   optional start of the date window
+     * @param endDate     optional end of the date window
+     * @param limit       optional page size; defaults to 20, max 100
+     * @param cursorToken optional opaque cursor from a previous response
+     * @param category    optional category filter; mutually exclusive with subcategory
+     * @param subcategory optional subcategory filter; mutually exclusive with category
+     * @param accountId   optional account filter
      * @return a page of expenses with an optional next-page cursor
      */
     public CursorPageResponse<Expense> listByUser(String userId,
@@ -116,10 +116,16 @@ public class ExpenseService {
                                                    LocalDate endDate,
                                                    Integer limit,
                                                    String cursorToken,
-                                                   CategoryFilter categoryFilter,
+                                                   String category,
+                                                   String subcategory,
                                                    Long accountId) {
         if (userId == null || userId.isBlank()) {
             throw createValidationException("user_id is required");
+        }
+
+        // --- Validate mutually exclusive filters ---
+        if (category != null && subcategory != null) {
+            throw createValidationException("category and subcategory are mutually exclusive; provide at most one");
         }
 
         // --- Resolve and validate date window ---
@@ -146,7 +152,7 @@ public class ExpenseService {
         // --- Fetch and map ---
         List<ExpenseEntity> entities = repo.findByFiltersCursor(
             userId, window.startDate(), window.endDate(),
-            categoryFilter, accountId,
+            category, subcategory, accountId,
             resolvedLimit, cursor);
         List<Expense> expenses = entities.stream().map(ExpenseMapper::toDto).toList();
 

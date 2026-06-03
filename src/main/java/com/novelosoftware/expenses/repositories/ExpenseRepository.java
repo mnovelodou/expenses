@@ -1,6 +1,5 @@
 package com.novelosoftware.expenses.repositories;
 
-import com.novelosoftware.expenses.dto.CategoryFilter;
 import com.novelosoftware.expenses.entities.ExpenseEntity;
 import com.novelosoftware.expenses.util.ExpenseCursor;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -103,7 +102,9 @@ public class ExpenseRepository {
 
     /**
      * Returns a page of expenses for a given user within a date range, with optional
-     * filters on category/subcategory (via a {@link CategoryFilter} union) and accountId.
+     * filters on category, subcategory, and accountId. Exactly one of category or
+     * subcategory may be supplied; supplying both is a caller error and should be
+     * rejected at the service layer before reaching this method.
      *
      * <p>Results are ordered by {@code expense_date DESC, expense_id DESC}.
      * When {@code cursor} is provided only expenses strictly older than the cursor
@@ -112,18 +113,19 @@ public class ExpenseRepository {
      * <p>The {@code idx_expenses_user_date} index bounds the scan via the mandatory
      * {@code userId} + date range predicates; the optional filters are applied on top.
      *
-     * @param userId         the user whose expenses to fetch (mandatory)
-     * @param startDate      inclusive start of the date range (mandatory)
-     * @param endDate        inclusive end of the date range (mandatory)
-     * @param categoryFilter optional category or subcategory filter; {@code null} for no filter
-     * @param accountId      optional account filter
-     * @param limit          maximum number of results to return
-     * @param cursor         optional cursor from the previous page; {@code null} for the first page
+     * @param userId      the user whose expenses to fetch (mandatory)
+     * @param startDate   inclusive start of the date range (mandatory)
+     * @param endDate     inclusive end of the date range (mandatory)
+     * @param category    optional category filter; mutually exclusive with subcategory
+     * @param subcategory optional subcategory filter; mutually exclusive with category
+     * @param accountId   optional account filter
+     * @param limit       maximum number of results to return
+     * @param cursor      optional cursor from the previous page; {@code null} for the first page
      * @return list of expense entities for the requested page
      */
     public List<ExpenseEntity> findByFiltersCursor(
             String userId, LocalDate startDate, LocalDate endDate,
-            CategoryFilter categoryFilter, Long accountId,
+            String category, String subcategory, Long accountId,
             int limit,
             ExpenseCursor.DecodedCursor cursor) {
 
@@ -136,12 +138,13 @@ public class ExpenseRepository {
         params.add(startDate);
         params.add(endDate);
 
-        if (categoryFilter instanceof CategoryFilter.ByCategoryName f) {
+        if (category != null) {
             sql.append("AND category = ? ");
-            params.add(f.category());
-        } else if (categoryFilter instanceof CategoryFilter.BySubcategoryName f) {
+            params.add(category);
+        }
+        if (subcategory != null) {
             sql.append("AND subcategory = ? ");
-            params.add(f.subcategory());
+            params.add(subcategory);
         }
         if (accountId != null) {
             sql.append("AND account_id = ? ");

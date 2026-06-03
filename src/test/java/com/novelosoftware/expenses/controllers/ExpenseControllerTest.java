@@ -10,8 +10,6 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-import com.novelosoftware.expenses.dto.CategoryFilter;
-
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -199,11 +197,13 @@ public class ExpenseControllerTest {
     void list_filter_delegatesToService(
             String testName,
             String[] queryParams,
-            CategoryFilter expectedFilter,
+            String expectedCategory,
+            String expectedSubcategory,
             Long expectedAccountId) throws Exception {
 
         when(expenseService.listByUser(any(), any(), any(), any(), any(),
-            expectedFilter == null ? isNull() : eq(expectedFilter),
+            expectedCategory == null ? isNull() : eq(expectedCategory),
+            expectedSubcategory == null ? isNull() : eq(expectedSubcategory),
             expectedAccountId == null ? isNull() : eq(expectedAccountId)))
             .thenReturn(new com.novelosoftware.expenses.dto.CursorPageResponse<>(List.of(), null, 20));
 
@@ -215,35 +215,29 @@ public class ExpenseControllerTest {
         mockMvc.perform(request).andExpect(status().isOk());
 
         verify(expenseService).listByUser(eq("user-1"), isNull(), isNull(), isNull(), isNull(),
-            expectedFilter == null ? isNull() : eq(expectedFilter),
+            expectedCategory == null ? isNull() : eq(expectedCategory),
+            expectedSubcategory == null ? isNull() : eq(expectedSubcategory),
             expectedAccountId == null ? isNull() : eq(expectedAccountId));
     }
 
     static Stream<Arguments> filterCombinations() {
         return Stream.of(
-            Arguments.of("no_filters",
-                new String[]{},
-                null, null),
-            Arguments.of("category",
-                new String[]{"category", "Food"},
-                CategoryFilter.ofCategory("Food"), null),
-            Arguments.of("subcategory",
-                new String[]{"subcategory", "Groceries"},
-                CategoryFilter.ofSubcategory("Groceries"), null),
-            Arguments.of("account_id",
-                new String[]{"account_id", "3"},
-                null, 3L),
-            Arguments.of("category_and_account_id",
-                new String[]{"category", "Food", "account_id", "3"},
-                CategoryFilter.ofCategory("Food"), 3L),
-            Arguments.of("subcategory_and_account_id",
-                new String[]{"subcategory", "Groceries", "account_id", "3"},
-                CategoryFilter.ofSubcategory("Groceries"), 3L)
+            Arguments.of("no_filters",      new String[]{},                                     null,        null,         null),
+            Arguments.of("category",         new String[]{"category", "Food"},                   "Food",      null,         null),
+            Arguments.of("subcategory",      new String[]{"subcategory", "Groceries"},            null,        "Groceries",  null),
+            Arguments.of("account_id",       new String[]{"account_id", "3"},                    null,        null,         3L),
+            Arguments.of("cat_and_acct",     new String[]{"category", "Food", "account_id", "3"}, "Food",     null,         3L),
+            Arguments.of("sub_and_acct",     new String[]{"subcategory", "Groceries", "account_id", "3"}, null, "Groceries", 3L)
         );
     }
 
     @Test
     void list_categoryAndSubcategoryBothProvided_returns400() throws Exception {
+        when(expenseService.listByUser(any(), any(), any(), any(), any(),
+            eq("Food"), eq("Groceries"), isNull()))
+            .thenThrow(com.novelosoftware.expenses.exceptions.ExpenseServiceExceptions
+                .createValidationException("category and subcategory are mutually exclusive; provide at most one"));
+
         mockMvc.perform(get("/expenses")
                 .param("user_id", "user-1")
                 .param("category", "Food")
