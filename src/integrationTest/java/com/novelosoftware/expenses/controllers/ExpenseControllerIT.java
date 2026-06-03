@@ -31,7 +31,7 @@ class ExpenseControllerIT extends BaseIT {
     // -------------------------------------------------------------------------
 
     @Test
-    void list_happyPath_firstPage_returns200WithContent() throws Exception {
+    void list_happyPath_firstPage_returnsItemsNewestFirst() throws Exception {
         createExpenseOnDate(firstAccountId, USER, "2026-05-10");
         createExpenseOnDate(firstAccountId, USER, "2026-05-20");
 
@@ -42,8 +42,11 @@ class ExpenseControllerIT extends BaseIT {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.content").isArray())
             .andExpect(jsonPath("$.content.length()").value(2))
-            .andExpect(jsonPath("$.pageSize").value(20))
-            .andExpect(jsonPath("$.nextCursor").doesNotExist());
+            // newest first
+            .andExpect(jsonPath("$.content[0].expenseDate").value("2026-05-20"))
+            .andExpect(jsonPath("$.content[1].expenseDate").value("2026-05-10"))
+            .andExpect(jsonPath("$.content[0].createdBy").value(USER))
+            .andExpect(jsonPath("$.pageSize").value(20));
     }
 
     @Test
@@ -134,6 +137,27 @@ class ExpenseControllerIT extends BaseIT {
                 .param("user_id", USER)
                 .param("start_date", "2026-05-31")
                 .param("end_date", "2026-05-01"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+    }
+
+    @Test
+    void list_malformedStartDate_returns400() throws Exception {
+        mockMvc.perform(get("/expenses")
+                .param("user_id", USER)
+                .param("start_date", "not-a-date")
+                .param("end_date", "2026-05-31"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+    }
+
+    @Test
+    void list_malformedLimit_returns400() throws Exception {
+        mockMvc.perform(get("/expenses")
+                .param("user_id", USER)
+                .param("start_date", "2026-05-01")
+                .param("end_date", "2026-05-31")
+                .param("limit", "abc"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
     }

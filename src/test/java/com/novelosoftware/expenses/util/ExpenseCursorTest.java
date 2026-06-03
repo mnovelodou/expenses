@@ -52,4 +52,32 @@ class ExpenseCursorTest {
             .encodeToString("{\"id\":98}".getBytes());
         assertThrows(InvalidCursorException.class, () -> ExpenseCursor.decode(json));
     }
+
+    @Test
+    void decode_missingIdField_throwsInvalidCursorException() {
+        String json = java.util.Base64.getUrlEncoder().withoutPadding()
+            .encodeToString("{\"d\":\"2026-05-15\"}".getBytes());
+        assertThrows(InvalidCursorException.class, () -> ExpenseCursor.decode(json));
+    }
+
+    @Test
+    void decode_nullIdField_throwsInvalidCursorException() {
+        String json = java.util.Base64.getUrlEncoder().withoutPadding()
+            .encodeToString("{\"d\":\"2026-05-15\",\"id\":null}".getBytes());
+        assertThrows(InvalidCursorException.class, () -> ExpenseCursor.decode(json));
+    }
+
+    @Test
+    void decode_zeroId_throwsInvalidCursorException() {
+        String json = java.util.Base64.getUrlEncoder().withoutPadding()
+            .encodeToString("{\"d\":\"2026-05-15\",\"id\":0}".getBytes());
+        assertThrows(InvalidCursorException.class, () -> ExpenseCursor.decode(json));
+    }
+
+    @Test
+    void decode_negativeId_throwsInvalidCursorException() {
+        String json = java.util.Base64.getUrlEncoder().withoutPadding()
+            .encodeToString("{\"d\":\"2026-05-15\",\"id\":-1}".getBytes());
+        assertThrows(InvalidCursorException.class, () -> ExpenseCursor.decode(json));
+    }
 }

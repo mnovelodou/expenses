@@ -50,8 +50,16 @@ public final class ExpenseCursor {
         try {
             byte[] bytes = Base64.getUrlDecoder().decode(token);
             Payload payload = MAPPER.readValue(bytes, Payload.class);
+            if (payload.d() == null || payload.id() == null) {
+                throw ExpenseServiceExceptions.createInvalidCursorException("Cursor is missing required fields");
+            }
+            if (payload.id() <= 0) {
+                throw ExpenseServiceExceptions.createInvalidCursorException("Cursor contains an invalid id");
+            }
             LocalDate date = LocalDate.parse(payload.d());
             return new DecodedCursor(date, payload.id());
+        } catch (ExpenseServiceExceptions.InvalidCursorException e) {
+            throw e;
         } catch (Exception e) {
             throw ExpenseServiceExceptions.createInvalidCursorException("Cursor is malformed or cannot be decoded");
         }

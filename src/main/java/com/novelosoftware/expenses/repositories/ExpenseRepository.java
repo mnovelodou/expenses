@@ -18,6 +18,21 @@ public class ExpenseRepository {
 
     static final String GET_SQL = "SELECT * FROM expenses WHERE expense_id = ?";
 
+    static final String FIND_BY_USER_CURSOR_SQL = """
+        SELECT * FROM expenses
+        WHERE created_by = ? AND expense_date BETWEEN ? AND ?
+        ORDER BY expense_date DESC, expense_id DESC
+        LIMIT ?
+        """;
+
+    static final String FIND_BY_USER_CURSOR_WITH_CURSOR_SQL = """
+        SELECT * FROM expenses
+        WHERE created_by = ? AND expense_date BETWEEN ? AND ?
+          AND (expense_date < ? OR (expense_date = ? AND expense_id < ?))
+        ORDER BY expense_date DESC, expense_id DESC
+        LIMIT ?
+        """;
+
     static final RowMapper<ExpenseEntity> MAPPER = (rs, row) -> new ExpenseEntity(
         rs.getLong("expense_id"),
         rs.getObject("expense_date", LocalDate.class),
@@ -172,22 +187,9 @@ public class ExpenseRepository {
                                                 int limit,
                                                 com.novelosoftware.expenses.util.ExpenseCursor.DecodedCursor cursor) {
         if (cursor == null) {
-            var sql = """
-                SELECT * FROM expenses
-                WHERE created_by = ? AND expense_date BETWEEN ? AND ?
-                ORDER BY expense_date DESC, expense_id DESC
-                LIMIT ?
-                """;
-            return jdbc.query(sql, MAPPER, userId, startDate, endDate, limit);
+            return jdbc.query(FIND_BY_USER_CURSOR_SQL, MAPPER, userId, startDate, endDate, limit);
         } else {
-            var sql = """
-                SELECT * FROM expenses
-                WHERE created_by = ? AND expense_date BETWEEN ? AND ?
-                  AND (expense_date < ? OR (expense_date = ? AND expense_id < ?))
-                ORDER BY expense_date DESC, expense_id DESC
-                LIMIT ?
-                """;
-            return jdbc.query(sql, MAPPER,
+            return jdbc.query(FIND_BY_USER_CURSOR_WITH_CURSOR_SQL, MAPPER,
                 userId, startDate, endDate,
                 cursor.date(), cursor.date(), cursor.id(),
                 limit);

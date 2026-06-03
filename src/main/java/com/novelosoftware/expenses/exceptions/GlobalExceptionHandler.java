@@ -3,6 +3,7 @@ package com.novelosoftware.expenses.exceptions;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.novelosoftware.expenses.exceptions.AccountServiceExceptions.AccountNotFoundException;
 import com.novelosoftware.expenses.exceptions.AccountServiceExceptions.AccountValidationException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -133,6 +134,20 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleExpenseNotFoundException(ExpenseNotFoundException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
             .body(new ErrorResponse("NOT_FOUND", ex.getMessage()));
+    }
+
+    /**
+     * Handles type conversion failures for query parameters (e.g. a non-date value
+     * passed to {@code start_date}, or a non-numeric value passed to {@code limit}).
+     *
+     * @param ex the type mismatch exception
+     * @return 400 response with BAD_REQUEST error code
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        String message = "Invalid value for parameter '" + ex.getName() + "': " + ex.getValue();
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+            .body(new ErrorResponse("BAD_REQUEST", message));
     }
 
     /**

@@ -1,5 +1,6 @@
 package com.novelosoftware.expenses.services;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.novelosoftware.expenses.dto.Account;
@@ -12,11 +13,12 @@ import com.novelosoftware.expenses.dto.UpdateExpenseResponse;
 import com.novelosoftware.expenses.entities.ExpenseEntity;
 import com.novelosoftware.expenses.mappers.ExpenseMapper;
 import com.novelosoftware.expenses.repositories.ExpenseRepository;
+import com.novelosoftware.expenses.util.DateWindowResolver;
+import com.novelosoftware.expenses.util.DateWindow;
 import com.novelosoftware.expenses.util.ExpenseCursor;
 
+import java.time.Clock;
 import java.time.LocalDate;
-import java.time.Period;
-import java.time.YearMonth;
 import java.util.List;
 
 import static com.novelosoftware.expenses.exceptions.ExpenseServiceExceptions.*;
@@ -29,10 +31,18 @@ public class ExpenseService {
     
     private final ExpenseRepository repo;
     private final AccountService accountService;
+    private final Clock clock;
 
+    @Autowired
     public ExpenseService(ExpenseRepository repo, AccountService accountService) {
+        this(repo, accountService, Clock.systemDefaultZone());
+    }
+
+    /** Package-private constructor for unit tests that need a controllable clock. */
+    ExpenseService(ExpenseRepository repo, AccountService accountService, Clock clock) {
         this.repo = repo;
         this.accountService = accountService;
+        this.clock = clock;
     }
 
     /**
@@ -103,26 +113,8 @@ public class ExpenseService {
             throw createValidationException("user_id is required");
         }
 
-        // --- Resolve date window ---
-        LocalDate resolvedStart = startDate;
-        LocalDate resolvedEnd = endDate;
-
-        if (resolvedStart == null && resolvedEnd == null) {
-            YearMonth lastMonth = YearMonth.now().minusMonths(1);
-            resolvedStart = lastMonth.atDay(1);
-            resolvedEnd = lastMonth.atEndOfMonth();
-        } else if (resolvedStart == null) {
-            resolvedStart = resolvedEnd.minusMonths(1);
-        } else if (resolvedEnd == null) {
-            resolvedEnd = resolvedStart.plusMonths(1);
-        }
-
-        if (resolvedEnd.isBefore(resolvedStart)) {
-            throw createValidationException("end_date must not be before start_date");
-        }
-        if (resolvedStart.plus(Period.ofMonths(3)).isBefore(resolvedEnd)) {
-            throw createValidationException("Date range must not exceed 3 calendar months");
-        }
+        // --- Resolve and validate date window ---
+        DateWindow window = DateWindowResolver.resolve(startDate, endDate, clock);
 
         // --- Resolve limit ---
         int resolvedLimit = (limit == null) ? 20 : limit;
@@ -137,13 +129,13 @@ public class ExpenseService {
         ExpenseCursor.DecodedCursor cursor = null;
         if (cursorToken != null && !cursorToken.isBlank()) {
             cursor = ExpenseCursor.decode(cursorToken); // throws InvalidCursorException if malformed
-            if (cursor.date().isBefore(resolvedStart) || cursor.date().isAfter(resolvedEnd)) {
+            if (cursor.date().isBefore(window.startDate()) || cursor.date().isAfter(window.endDate())) {
                 throw createInvalidCursorException("Cursor date is outside the requested date range");
             }
         }
 
         // --- Fetch and map ---
-        List<ExpenseEntity> entities = repo.findByUserCursor(userId, resolvedStart, resolvedEnd, resolvedLimit, cursor);
+        List<ExpenseEntity> entities = repo.findByUserCursor(userId, window.startDate(), window.endDate(), resolvedLimit, cursor);
         List<Expense> expenses = entities.stream().map(ExpenseMapper::toDto).toList();
 
         // --- Build next cursor ---
