@@ -2,8 +2,10 @@ package com.novelosoftware.expenses.services;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.novelosoftware.expenses.dto.Account;
+import com.novelosoftware.expenses.dto.BulkCreateExpensesRequest;
 import com.novelosoftware.expenses.dto.CreateExpenseRequest;
 import com.novelosoftware.expenses.dto.CreateExpenseResponse;
 import com.novelosoftware.expenses.dto.CursorPageResponse;
@@ -43,6 +45,36 @@ public class ExpenseService {
         this.repo = repo;
         this.accountService = accountService;
         this.clock = clock;
+    }
+
+    /**
+     * Creates multiple expenses atomically.
+     *
+     * @param requests list of CreateExpenseRequest payloads (1–200 items)
+     * @return the created expenses wrapped in CreateExpenseResponse objects
+     */
+    @Transactional
+    public List<CreateExpenseResponse> bulkCreate(BulkCreateExpensesRequest request) {
+        if (request == null || request.expenses() == null || request.expenses().isEmpty()) {
+            throw createValidationException("expenses list must not be empty");
+        }
+        if (request.expenses().size() > 200) {
+            throw createValidationException("expenses list must not exceed 200 items");
+        }
+
+        List<ExpenseEntity> entities = request.expenses().stream()
+            .map(req -> {
+                if (req == null || req.value() == null) {
+                    throw createValidationException("Expense payload not provided");
+                }
+                expenseWriteValidations(req.value());
+                return ExpenseMapper.toEntity(req.value());
+            })
+            .toList();
+
+        return repo.bulkInsert(entities).stream()
+            .map(e -> new CreateExpenseResponse(ExpenseMapper.toDto(e)))
+            .toList();
     }
 
     /**

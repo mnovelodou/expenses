@@ -34,6 +34,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.novelosoftware.expenses.dto.Account;
 import com.novelosoftware.expenses.dto.AccountType;
+import com.novelosoftware.expenses.dto.BulkCreateExpensesRequest;
 import com.novelosoftware.expenses.dto.CreateExpenseRequest;
 import com.novelosoftware.expenses.dto.CreateExpenseResponse;
 import com.novelosoftware.expenses.dto.CursorPageResponse;
@@ -502,6 +503,54 @@ public class ExpenseServiceTest {
         CursorPageResponse<Expense> result = service.listByUser("user-1", start, end, null, null, null, null, null);
 
         assertNull(result.nextCursor());
+    }
+
+    // -------------------------------------------------------------------------
+    // bulkCreate
+    // -------------------------------------------------------------------------
+
+    @Test
+    void bulkCreate_success_returnsAllCreatedExpenses() {
+        CreateExpenseRequest request = new CreateExpenseRequest(VALID_NEW_EXPENSE);
+        var bulkRequest = new BulkCreateExpensesRequest(List.of(request, request));
+        List<ExpenseEntity> inserted = List.of(CREATED_ENTITY, CREATED_ENTITY);
+
+        when(accountService.getById(VALID_NEW_EXPENSE.accountId())).thenReturn(VALID_ACCOUNT);
+        when(repo.bulkInsert(List.of(MAPPEED_ENTITY, MAPPEED_ENTITY))).thenReturn(inserted);
+
+        List<CreateExpenseResponse> responses = service.bulkCreate(bulkRequest);
+
+        assertEquals(2, responses.size());
+        assertEquals(CREATED_DTO, responses.get(0).value());
+        assertEquals(CREATED_DTO, responses.get(1).value());
+    }
+
+    @Test
+    void bulkCreate_oneItemInvalidAccountId_throwsUnauthorized() {
+        CreateExpenseRequest request = new CreateExpenseRequest(VALID_NEW_EXPENSE);
+        when(accountService.getById(VALID_NEW_EXPENSE.accountId())).thenReturn(VALID_ACCOUNT.toBuilder()
+            .createdBy("other-user")
+            .build());
+
+        assertThrows(UnauthorizedExpenseException.class,
+            () -> service.bulkCreate(new BulkCreateExpensesRequest(List.of(request))));
+    }
+
+    @Test
+    void bulkCreate_nullPayload_throwsValidationException() {
+        assertThrows(ExpenseValidationException.class,
+            () -> service.bulkCreate(new BulkCreateExpensesRequest(List.of(new CreateExpenseRequest(null)))));
+    }
+
+    @Test
+    void bulkCreate_nullRequest_throwsValidationException() {
+        assertThrows(ExpenseValidationException.class, () -> service.bulkCreate(null));
+    }
+
+    @Test
+    void bulkCreate_emptyList_throwsValidationException() {
+        assertThrows(ExpenseValidationException.class,
+            () -> service.bulkCreate(new BulkCreateExpensesRequest(List.of())));
     }
 
     // -------------------------------------------------------------------------

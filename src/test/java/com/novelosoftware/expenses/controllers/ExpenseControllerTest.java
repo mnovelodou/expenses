@@ -29,6 +29,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultMatcher;
 
+import com.novelosoftware.expenses.dto.BulkCreateExpensesRequest;
+import com.novelosoftware.expenses.dto.BulkCreateExpensesResponse;
 import com.novelosoftware.expenses.dto.CreateExpenseRequest;
 import com.novelosoftware.expenses.dto.CreateExpenseResponse;
 import com.novelosoftware.expenses.dto.Expense;
@@ -286,6 +288,56 @@ public class ExpenseControllerTest {
                 .param("user_id", "user-1")
                 .param("category", "Food")
                 .param("subcategory", "Groceries"))
+            .andExpect(status().isBadRequest());
+    }
+
+    // -------------------------------------------------------------------------
+    // POST /expenses/bulk
+    // -------------------------------------------------------------------------
+
+    @Test
+    void bulkCreate_success_returns201() throws Exception {
+        String payload = """
+            { "expenses": [
+                { "value": { "expenseDate": "2026-05-25", "accountId": 1, "amount": 1000.00,
+                  "description": "Expensive Tacos", "subCategory": "RESTAURANT", "createdBy": "user-1" } }
+            ] }
+            """;
+        when(expenseService.bulkCreate(any()))
+            .thenReturn(List.of(new CreateExpenseResponse(anExpense(1L))));
+
+        mockMvc.perform(post("/expenses/bulk")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(payload))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.expenses[0].value.expenseId").value(1));
+    }
+
+    @Test
+    void bulkCreate_emptyList_returns400() throws Exception {
+        when(expenseService.bulkCreate(any()))
+            .thenThrow(ExpenseServiceExceptions.createValidationException("expenses list must not be empty"));
+
+        mockMvc.perform(post("/expenses/bulk")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{ \"expenses\": [] }"))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void bulkCreate_serviceValidationError_returns400() throws Exception {
+        String payload = """
+            { "expenses": [
+                { "value": { "expenseDate": "2026-05-25", "accountId": 1, "amount": 1000.00,
+                  "description": "Expensive Tacos", "subCategory": "RESTAURANT", "createdBy": "user-1" } }
+            ] }
+            """;
+        when(expenseService.bulkCreate(any()))
+            .thenThrow(ExpenseServiceExceptions.createValidationException("invalid account"));
+
+        mockMvc.perform(post("/expenses/bulk")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(payload))
             .andExpect(status().isBadRequest());
     }
 
