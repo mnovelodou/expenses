@@ -1,11 +1,10 @@
 package com.novelosoftware.expenses.controllers;
 
-import com.novelosoftware.expenses.dto.Account;
-import com.novelosoftware.expenses.dto.AccountType;
-import com.novelosoftware.expenses.dto.CreateAccountResponse;
-import com.novelosoftware.expenses.dto.PageResponse;
+import com.novelosoftware.expenses.dto.*;
 import com.novelosoftware.expenses.exceptions.GlobalExceptionHandler;
+import com.novelosoftware.expenses.exceptions.ExpenseServiceExceptions;
 import com.novelosoftware.expenses.services.AccountService;
+import com.novelosoftware.expenses.services.ExpenseService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -15,10 +14,12 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -37,6 +38,9 @@ class AccountControllerTest {
 
     @MockitoBean
     private AccountService service;
+
+    @MockitoBean
+    private ExpenseService expenseService;
 
     @Test
     void getByUser_returnsPaginatedAccounts() throws Exception {
@@ -130,6 +134,50 @@ class AccountControllerTest {
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("BAD_REQUEST"))
             .andExpect(jsonPath("$.message").value("Invalid value 'SAVINGS'. Accepted values: DEBIT, CREDIT"));
+    }
+
+    // -------------------------------------------------------------------------
+    // GET /accounts/{id}/expenses
+    // -------------------------------------------------------------------------
+
+    @Test
+    void listExpenses_accountExists_returns200WithPage() throws Exception {
+        Expense expense = new Expense(10L, LocalDate.of(2026, 5, 10), 1L,
+            new BigDecimal("42.50"), "Tacos", SubCategory.RESTAURANT, "user-1");
+        CursorPageResponse<Expense> page = new CursorPageResponse<>(List.of(expense), null, 20);
+
+        when(service.getById(1L)).thenReturn(anAccount(1L));
+        when(expenseService.listByUser(eq("user-1"), isNull(), isNull(), isNull(), isNull(),
+            isNull(), isNull(), eq(1L))).thenReturn(page);
+
+        mockMvc.perform(get("/accounts/1/expenses"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content.length()").value(1))
+            .andExpect(jsonPath("$.content[0].expenseId").value(10));
+    }
+
+    @Test
+    void listExpenses_accountNotFound_returns404() throws Exception {
+        when(service.getById(99L)).thenThrow(createAccountNotFoundException(99L));
+
+        mockMvc.perform(get("/accounts/99/expenses"))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+    }
+
+    @Test
+    void listExpenses_categoryAndSubcategoryBothProvided_returns400() throws Exception {
+        when(service.getById(1L)).thenReturn(anAccount(1L));
+        when(expenseService.listByUser(any(), any(), any(), any(), any(),
+            eq("Food"), eq("Groceries"), eq(1L)))
+            .thenThrow(ExpenseServiceExceptions.createValidationException(
+                "category and subcategory are mutually exclusive; provide at most one"));
+
+        mockMvc.perform(get("/accounts/1/expenses")
+                .param("category", "Food")
+                .param("subcategory", "Groceries"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
     }
 
     private Account anAccount(Long id) {
