@@ -1,8 +1,11 @@
 package com.novelosoftware.expenses.controllers;
 
 import com.novelosoftware.expenses.BaseIT;
+import com.novelosoftware.expenses.util.ExpenseCursor;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
+
+import java.time.LocalDate;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -246,6 +249,106 @@ class AccountControllerIT extends BaseIT {
         mockMvc.perform(delete("/accounts/{id}", accountId))
             .andExpect(status().isPreconditionFailed())
             .andExpect(jsonPath("$.code").value("PRECONDITION_FAILED"));
+    }
+
+    // -------------------------------------------------------------------------
+    // GET /accounts/{id}/expenses
+    // -------------------------------------------------------------------------
+
+    @Test
+    void listExpenses_accountWithExpenses_returns200WithItems() throws Exception {
+        long accountId = createAccount("My Card", "user-ae");
+        createExpenseOnDate(accountId, "user-ae", "2026-05-10");
+        createExpenseOnDate(accountId, "user-ae", "2026-05-20");
+
+        mockMvc.perform(get("/accounts/{id}/expenses", accountId)
+                .param("start_date", "2026-05-01")
+                .param("end_date", "2026-05-31"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content.length()").value(2))
+            .andExpect(jsonPath("$.content[0].accountId").value(accountId))
+            .andExpect(jsonPath("$.content[0].expenseDate").value("2026-05-20")) // newest first
+            .andExpect(jsonPath("$.content[1].expenseDate").value("2026-05-10"));
+    }
+
+    @Test
+    void listExpenses_onlyReturnsExpensesForSpecifiedAccount() throws Exception {
+        long accountA = createAccount("Card A", "user-ae");
+        long accountB = createAccount("Card B", "user-ae");
+        createExpenseOnDate(accountA, "user-ae", "2026-05-10");
+        createExpenseOnDate(accountA, "user-ae", "2026-05-15");
+        createExpenseOnDate(accountB, "user-ae", "2026-05-20"); // should NOT appear
+
+        mockMvc.perform(get("/accounts/{id}/expenses", accountA)
+                .param("start_date", "2026-05-01")
+                .param("end_date", "2026-05-31"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content.length()").value(2))
+            .andExpect(jsonPath("$.content[0].accountId").value(accountA))
+            .andExpect(jsonPath("$.content[1].accountId").value(accountA));
+    }
+
+    @Test
+    void listExpenses_accountWithNoExpenses_returns200WithEmptyList() throws Exception {
+        long accountId = createAccount("Empty Card", "user-ae");
+
+        mockMvc.perform(get("/accounts/{id}/expenses", accountId)
+                .param("start_date", "2026-05-01")
+                .param("end_date", "2026-05-31"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content").isEmpty());
+    }
+
+    @Test
+    void listExpenses_unknownAccountId_returns404() throws Exception {
+        mockMvc.perform(get("/accounts/{id}/expenses", 999999)
+                .param("start_date", "2026-05-01")
+                .param("end_date", "2026-05-31"))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+    }
+
+    @Test
+    void listExpenses_categoryFilter_scopesResults() throws Exception {
+        long accountId = createAccount("Filter Card", "user-ae");
+        createExpenseWithSubcategoryOnDate(accountId, "user-ae", "2026-05-10", "RESTAURANT");
+        createExpenseWithSubcategoryOnDate(accountId, "user-ae", "2026-05-15", "GROCERIES");
+
+        mockMvc.perform(get("/accounts/{id}/expenses", accountId)
+                .param("start_date", "2026-05-01")
+                .param("end_date", "2026-05-31")
+                .param("subcategory", "GROCERIES"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content.length()").value(1))
+            .andExpect(jsonPath("$.content[0].subCategory").value("GROCERIES"));
+    }
+
+    @Test
+    void listExpenses_cursorPagination_secondPageFollowsFirst() throws Exception {
+        long accountId = createAccount("Paged Card", "user-ae");
+        createExpenseOnDate(accountId, "user-ae", "2026-05-10");
+        createExpenseOnDate(accountId, "user-ae", "2026-05-15");
+        createExpenseOnDate(accountId, "user-ae", "2026-05-20");
+
+        String firstPageJson = mockMvc.perform(get("/accounts/{id}/expenses", accountId)
+                .param("start_date", "2026-05-01")
+                .param("end_date", "2026-05-31")
+                .param("limit", "2"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content.length()").value(2))
+            .andExpect(jsonPath("$.nextCursor").isString())
+            .andReturn().getResponse().getContentAsString();
+
+        String nextCursor = objectMapper.readTree(firstPageJson).path("nextCursor").asText();
+
+        mockMvc.perform(get("/accounts/{id}/expenses", accountId)
+                .param("start_date", "2026-05-01")
+                .param("end_date", "2026-05-31")
+                .param("limit", "2")
+                .param("cursor", nextCursor))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content.length()").value(1))
+            .andExpect(jsonPath("$.nextCursor").doesNotExist());
     }
 
     // -------------------------------------------------------------------------

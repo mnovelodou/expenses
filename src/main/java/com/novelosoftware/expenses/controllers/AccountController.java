@@ -2,8 +2,12 @@ package com.novelosoftware.expenses.controllers;
 
 import com.novelosoftware.expenses.dto.*;
 import com.novelosoftware.expenses.services.AccountService;
+import com.novelosoftware.expenses.services.ExpenseService;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDate;
 
 /**
  * REST controller for account operations.
@@ -14,12 +18,15 @@ import org.springframework.web.bind.annotation.*;
 public class AccountController {
 
     private final AccountService service;
+    private final ExpenseService expenseService;
 
     /**
-     * @param service the service handling account business logic
+     * @param service        the service handling account business logic
+     * @param expenseService the service handling expense queries
      */
-    public AccountController(AccountService service) {
+    public AccountController(AccountService service, ExpenseService expenseService) {
         this.service = service;
+        this.expenseService = expenseService;
     }
 
     /**
@@ -82,5 +89,34 @@ public class AccountController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id) {
         service.delete(id);
+    }
+
+    /**
+     * Lists expenses for a specific account with cursor pagination and optional filters.
+     * The owner (user_id) is resolved from the account, so callers do not need to supply it.
+     *
+     * @param id          the account ID (path)
+     * @param startDate   optional start of date window; defaults to first day of last month
+     * @param endDate     optional end of date window; defaults to last day of last month
+     * @param limit       optional page size (1–100); defaults to 20
+     * @param cursor      optional opaque cursor from a previous response's {@code nextCursor}
+     * @param category    optional category filter; mutually exclusive with subcategory
+     * @param subcategory optional subcategory filter; mutually exclusive with category
+     * @return a page of expenses and an optional next-page cursor
+     */
+    @GetMapping("/{id}/expenses")
+    public CursorPageResponse<Expense> listExpenses(
+            @PathVariable Long id,
+            @RequestParam(value = "start_date", required = false)
+                @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(value = "end_date", required = false)
+                @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(value = "limit", required = false) Integer limit,
+            @RequestParam(value = "cursor", required = false) String cursor,
+            @RequestParam(value = "category", required = false) String category,
+            @RequestParam(value = "subcategory", required = false) String subcategory) {
+
+        String userId = service.getById(id).createdBy();
+        return expenseService.listByUser(userId, startDate, endDate, limit, cursor, category, subcategory, id);
     }
 }
