@@ -272,6 +272,23 @@ class AccountControllerIT extends BaseIT {
     }
 
     @Test
+    void listExpenses_onlyReturnsExpensesForSpecifiedAccount() throws Exception {
+        long accountA = createAccount("Card A", "user-ae");
+        long accountB = createAccount("Card B", "user-ae");
+        createExpenseOnDate(accountA, "user-ae", "2026-05-10");
+        createExpenseOnDate(accountA, "user-ae", "2026-05-15");
+        createExpenseOnDate(accountB, "user-ae", "2026-05-20"); // should NOT appear
+
+        mockMvc.perform(get("/accounts/{id}/expenses", accountA)
+                .param("start_date", "2026-05-01")
+                .param("end_date", "2026-05-31"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content.length()").value(2))
+            .andExpect(jsonPath("$.content[0].accountId").value(accountA))
+            .andExpect(jsonPath("$.content[1].accountId").value(accountA));
+    }
+
+    @Test
     void listExpenses_accountWithNoExpenses_returns200WithEmptyList() throws Exception {
         long accountId = createAccount("Empty Card", "user-ae");
 
