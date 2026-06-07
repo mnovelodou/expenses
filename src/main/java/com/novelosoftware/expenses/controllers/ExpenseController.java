@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.novelosoftware.expenses.dto.BulkCreateExpensesRequest;
+import com.novelosoftware.expenses.dto.BulkCreateExpensesResponse;
 import com.novelosoftware.expenses.dto.CreateExpenseRequest;
 import com.novelosoftware.expenses.dto.CreateExpenseResponse;
 import com.novelosoftware.expenses.dto.CursorPageResponse;
@@ -77,6 +79,12 @@ public class ExpenseController {
     @ResponseStatus(HttpStatus.CREATED)
     public CreateExpenseResponse create(@RequestBody CreateExpenseRequest request) {
         return expenseService.create(request);
+    }
+
+    @PostMapping("/bulk")
+    @ResponseStatus(HttpStatus.CREATED)
+    public BulkCreateExpensesResponse bulkCreate(@RequestBody BulkCreateExpensesRequest request) {
+        return new BulkCreateExpensesResponse(expenseService.bulkCreate(request.expenses()));
     }
 
     @GetMapping("/{id}")

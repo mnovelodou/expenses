@@ -627,6 +627,92 @@ class ExpenseControllerIT extends BaseIT {
             .andExpect(jsonPath("$.code").value("NOT_FOUND"));
     }
 
+    // -------------------------------------------------------------------------
+    // POST /expenses/bulk
+    // -------------------------------------------------------------------------
+
+    @Test
+    void bulkCreate_happyPath_returns201AndAllExpensesInDB() throws Exception {
+        String payload = """
+            { "expenses": [
+                { "value": { "expenseDate": "2026-05-10", "accountId": %d, "amount": 10.00,
+                  "description": "Lunch", "subCategory": "RESTAURANT", "createdBy": "%s" } },
+                { "value": { "expenseDate": "2026-05-11", "accountId": %d, "amount": 20.00,
+                  "description": "Groceries", "subCategory": "GROCERIES", "createdBy": "%s" } }
+            ] }
+            """.formatted(firstAccountId, USER, firstAccountId, USER);
+
+        mockMvc.perform(post("/expenses/bulk")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(payload))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.expenses.length()").value(2))
+            .andExpect(jsonPath("$.expenses[0].value.expenseId").isNumber())
+            .andExpect(jsonPath("$.expenses[0].value.description").value("Lunch"))
+            .andExpect(jsonPath("$.expenses[1].value.description").value("Groceries"));
+
+        // Verify both rows are visible via GET
+        mockMvc.perform(get("/expenses")
+                .param("user_id", USER)
+                .param("start_date", "2026-05-01")
+                .param("end_date", "2026-05-31"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content.length()").value(2));
+    }
+
+    @Test
+    void bulkCreate_oneItemInvalidAccount_returns400AndNoExpensesCreated() throws Exception {
+        String payload = """
+            { "expenses": [
+                { "value": { "expenseDate": "2026-05-10", "accountId": %d, "amount": 10.00,
+                  "description": "Valid", "subCategory": "RESTAURANT", "createdBy": "%s" } },
+                { "value": { "expenseDate": "2026-05-11", "accountId": 999999, "amount": 20.00,
+                  "description": "Bad account", "subCategory": "GROCERIES", "createdBy": "%s" } }
+            ] }
+            """.formatted(firstAccountId, USER, USER);
+
+        mockMvc.perform(post("/expenses/bulk")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(payload))
+            .andExpect(status().isNotFound());
+
+        // No expenses should have been persisted
+        mockMvc.perform(get("/expenses")
+                .param("user_id", USER)
+                .param("start_date", "2026-05-01")
+                .param("end_date", "2026-05-31"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content.length()").value(0));
+    }
+
+    @Test
+    void bulkCreate_emptyList_returns400() throws Exception {
+        mockMvc.perform(post("/expenses/bulk")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{ \"expenses\": [] }"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+    }
+
+    @Test
+    void bulkCreate_exceedsBatchSizeLimit_returns400() throws Exception {
+        // Build a list of 201 expenses
+        StringBuilder items = new StringBuilder();
+        for (int i = 0; i < 201; i++) {
+            if (i > 0) items.append(",");
+            items.append("""
+                { "value": { "expenseDate": "2026-05-10", "accountId": %d, "amount": 5.00,
+                  "description": "Item %d", "subCategory": "RESTAURANT", "createdBy": "%s" } }
+                """.formatted(firstAccountId, i, USER));
+        }
+        String payload = "{ \"expenses\": [" + items + "] }";
+
+        mockMvc.perform(post("/expenses/bulk")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(payload))
+            .andExpect(status().isBadRequest());
+    }
+
     @Test
     void update_accountNotFound() throws Exception {
         long expenseId = createExpense(firstAccountId, USER);
