@@ -67,22 +67,25 @@ public class ExpenseRepository {
 
     /**
      * Inserts multiple expenses in a single statement and returns the persisted entities
-     * including generated IDs. The returned list preserves insertion order.
+     * including generated IDs. The returned list is ordered by {@code expense_id ASC},
+     * which matches insertion order because the ID is assigned by a monotonically increasing sequence.
+     *
+     * <p>This method does not open its own transaction. Callers that need atomicity (all-or-nothing)
+     * must invoke it within a {@code @Transactional} scope (see {@code ExpenseService.bulkCreate}).
      *
      * @param entities the expenses to insert (must be non-empty)
      * @return the inserted expense entities with generated IDs
      */
     public List<ExpenseEntity> bulkInsert(List<ExpenseEntity> entities) {
-        var placeholders = "(" + "?, ".repeat(6) + "?)";
-        var allPlaceholders = String.join(", ", java.util.Collections.nCopies(entities.size(), placeholders));
-        var sql = """
-            INSERT INTO expenses (expense_date, account_id, amount, description, category, subcategory, created_by)
-            VALUES %s
-            RETURNING *
-            """.formatted(allPlaceholders);
+        var sql = new StringBuilder(
+            "WITH inserted AS (INSERT INTO expenses " +
+            "(expense_date, account_id, amount, description, category, subcategory, created_by) VALUES ");
 
         var params = new ArrayList<>();
-        for (ExpenseEntity e : entities) {
+        for (int i = 0; i < entities.size(); i++) {
+            if (i > 0) sql.append(", ");
+            sql.append("(?, ?, ?, ?, ?, ?, ?)");
+            ExpenseEntity e = entities.get(i);
             params.add(e.expenseDate());
             params.add(e.accountId());
             params.add(e.amount());
@@ -91,7 +94,11 @@ public class ExpenseRepository {
             params.add(e.subcategory());
             params.add(e.createdBy());
         }
-        return jdbc.query(sql, MAPPER, params.toArray());
+        // ORDER BY expense_id ASC makes the returned order deterministic and matches insertion order
+        // because expense_id is assigned by a monotonically increasing sequence.
+        sql.append(" RETURNING *) SELECT * FROM inserted ORDER BY expense_id ASC");
+
+        return jdbc.query(sql.toString(), MAPPER, params.toArray());
     }
 
     /**

@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.novelosoftware.expenses.dto.Account;
+import com.novelosoftware.expenses.dto.BulkCreateExpensesRequest;
 import com.novelosoftware.expenses.dto.CreateExpenseRequest;
 import com.novelosoftware.expenses.dto.CreateExpenseResponse;
 import com.novelosoftware.expenses.dto.CursorPageResponse;
@@ -53,15 +54,15 @@ public class ExpenseService {
      * @return the created expenses wrapped in CreateExpenseResponse objects
      */
     @Transactional
-    public List<CreateExpenseResponse> bulkCreate(List<CreateExpenseRequest> requests) {
-        if (requests == null || requests.isEmpty()) {
+    public List<CreateExpenseResponse> bulkCreate(BulkCreateExpensesRequest request) {
+        if (request == null || request.expenses() == null || request.expenses().isEmpty()) {
             throw createValidationException("expenses list must not be empty");
         }
-        if (requests.size() > 200) {
+        if (request.expenses().size() > 200) {
             throw createValidationException("expenses list must not exceed 200 items");
         }
 
-        List<ExpenseEntity> entities = requests.stream()
+        List<ExpenseEntity> entities = request.expenses().stream()
             .map(req -> {
                 if (req == null || req.value() == null) {
                     throw createValidationException("Expense payload not provided");

@@ -512,13 +512,13 @@ public class ExpenseServiceTest {
     @Test
     void bulkCreate_success_returnsAllCreatedExpenses() {
         CreateExpenseRequest request = new CreateExpenseRequest(VALID_NEW_EXPENSE);
-        List<CreateExpenseRequest> requests = List.of(request, request);
+        var bulkRequest = new BulkCreateExpensesRequest(List.of(request, request));
         List<ExpenseEntity> inserted = List.of(CREATED_ENTITY, CREATED_ENTITY);
 
         when(accountService.getById(VALID_NEW_EXPENSE.accountId())).thenReturn(VALID_ACCOUNT);
         when(repo.bulkInsert(List.of(MAPPEED_ENTITY, MAPPEED_ENTITY))).thenReturn(inserted);
 
-        List<CreateExpenseResponse> responses = service.bulkCreate(requests);
+        List<CreateExpenseResponse> responses = service.bulkCreate(bulkRequest);
 
         assertEquals(2, responses.size());
         assertEquals(CREATED_DTO, responses.get(0).value());
@@ -532,13 +532,25 @@ public class ExpenseServiceTest {
             .createdBy("other-user")
             .build());
 
-        assertThrows(UnauthorizedExpenseException.class, () -> service.bulkCreate(List.of(request)));
+        assertThrows(UnauthorizedExpenseException.class,
+            () -> service.bulkCreate(new BulkCreateExpensesRequest(List.of(request))));
     }
 
     @Test
     void bulkCreate_nullPayload_throwsValidationException() {
         assertThrows(ExpenseValidationException.class,
-            () -> service.bulkCreate(List.of(new CreateExpenseRequest(null))));
+            () -> service.bulkCreate(new BulkCreateExpensesRequest(List.of(new CreateExpenseRequest(null)))));
+    }
+
+    @Test
+    void bulkCreate_nullRequest_throwsValidationException() {
+        assertThrows(ExpenseValidationException.class, () -> service.bulkCreate(null));
+    }
+
+    @Test
+    void bulkCreate_emptyList_throwsValidationException() {
+        assertThrows(ExpenseValidationException.class,
+            () -> service.bulkCreate(new BulkCreateExpensesRequest(List.of())));
     }
 
     // -------------------------------------------------------------------------

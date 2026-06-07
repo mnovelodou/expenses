@@ -29,6 +29,6 @@ All expenses in a `POST /expenses/bulk` request SHALL be inserted within a singl
 ### Requirement: Individual expense validation in bulk request
 Each expense object in the `expenses` array SHALL be validated against the same rules as a single `POST /expenses` request (required fields, valid types, valid accountId reference).
 
-#### Scenario: Invalid accountId in one item
+#### Scenario: Non-existent accountId in one item
 - **WHEN** a POST request to `/expenses/bulk` contains an expense referencing a non-existent `accountId`
-- **THEN** the system returns HTTP 400 and no expenses are created
+- **THEN** the system returns HTTP 404 and no expenses are created

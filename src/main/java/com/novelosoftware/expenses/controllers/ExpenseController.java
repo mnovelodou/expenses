@@ -84,7 +84,7 @@ public class ExpenseController {
     @PostMapping("/bulk")
     @ResponseStatus(HttpStatus.CREATED)
     public BulkCreateExpensesResponse bulkCreate(@RequestBody BulkCreateExpensesRequest request) {
-        return new BulkCreateExpensesResponse(expenseService.bulkCreate(request.expenses()));
+        return new BulkCreateExpensesResponse(expenseService.bulkCreate(request));
     }
 
     @GetMapping("/{id}")
