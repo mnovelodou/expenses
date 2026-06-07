@@ -63,6 +63,17 @@ public class ExpenseService {
         return new CreateExpenseResponse(ExpenseMapper.toDto(createdEntity));
     }
 
+    public Expense getById(Long id) {
+        ExpenseEntity entity = repo.get(id).orElseThrow(() -> createExpenseNotFoundException(id));
+        return ExpenseMapper.toDto(entity);
+    }
+
+    public void delete(Long id) {
+        if (!repo.delete(id)) {
+            throw createExpenseNotFoundException(id);
+        }
+    }
+
     public UpdateExpenseResponse update(Long id, UpdateExpenseRequest request) {
         if (request == null || request.value() == null)  {
             throw createValidationException("Expense payload not provided");

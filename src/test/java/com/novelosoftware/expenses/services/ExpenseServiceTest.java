@@ -42,6 +42,7 @@ import com.novelosoftware.expenses.dto.SubCategory;
 import com.novelosoftware.expenses.dto.UpdateExpenseRequest;
 import com.novelosoftware.expenses.dto.UpdateExpenseResponse;
 import com.novelosoftware.expenses.entities.ExpenseEntity;
+import com.novelosoftware.expenses.exceptions.ExpenseServiceExceptions.ExpenseNotFoundException;
 import com.novelosoftware.expenses.exceptions.ExpenseServiceExceptions.ExpenseValidationException;
 import com.novelosoftware.expenses.exceptions.ExpenseServiceExceptions.InvalidCursorException;
 import com.novelosoftware.expenses.exceptions.ExpenseServiceExceptions.UnauthorizedExpenseException;
@@ -131,6 +132,41 @@ public class ExpenseServiceTest {
     @BeforeEach
     void setUp() {
         service = new ExpenseService(repo, accountService, FIXED_CLOCK);
+    }
+
+    // -------------------------------------------------------------------------
+    // getById
+    // -------------------------------------------------------------------------
+
+    @Test
+    void getById_found_returnsMappedDto() {
+        when(repo.get(EXPENSE_ID)).thenReturn(Optional.of(CREATED_ENTITY));
+        Expense result = service.getById(EXPENSE_ID);
+        assertEquals(CREATED_DTO, result);
+        verify(repo).get(EXPENSE_ID);
+    }
+
+    @Test
+    void getById_notFound_throwsExpenseNotFoundException() {
+        when(repo.get(EXPENSE_ID)).thenReturn(Optional.empty());
+        assertThrows(ExpenseNotFoundException.class, () -> service.getById(EXPENSE_ID));
+    }
+
+    // -------------------------------------------------------------------------
+    // delete
+    // -------------------------------------------------------------------------
+
+    @Test
+    void delete_success_doesNotThrow() {
+        when(repo.delete(EXPENSE_ID)).thenReturn(true);
+        service.delete(EXPENSE_ID);
+        verify(repo).delete(EXPENSE_ID);
+    }
+
+    @Test
+    void delete_notFound_throwsExpenseNotFoundException() {
+        when(repo.delete(EXPENSE_ID)).thenReturn(false);
+        assertThrows(ExpenseNotFoundException.class, () -> service.delete(EXPENSE_ID));
     }
 
     @Test
