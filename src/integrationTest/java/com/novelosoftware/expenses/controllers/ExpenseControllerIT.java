@@ -11,6 +11,7 @@ import java.time.YearMonth;
 import java.util.List;
 import java.util.stream.Stream;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -583,6 +584,47 @@ class ExpenseControllerIT extends BaseIT {
             .andExpect(status().isNotFound())
             .andExpect(jsonPath("$.code").value("NOT_FOUND"))
             .andExpect(jsonPath("$.message").value("Expense id 999999 not found"));
+    }
+
+    // -------------------------------------------------------------------------
+    // GET /expenses/{id}
+    // -------------------------------------------------------------------------
+
+    @Test
+    void getById_existingExpense_returns200WithBody() throws Exception {
+        long expenseId = createExpense(firstAccountId, USER);
+        mockMvc.perform(get("/expenses/" + expenseId))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.expenseId").value(expenseId))
+            .andExpect(jsonPath("$.accountId").value(firstAccountId))
+            .andExpect(jsonPath("$.createdBy").value(USER));
+    }
+
+    @Test
+    void getById_unknownId_returns404() throws Exception {
+        mockMvc.perform(get("/expenses/999999"))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+    }
+
+    // -------------------------------------------------------------------------
+    // DELETE /expenses/{id}
+    // -------------------------------------------------------------------------
+
+    @Test
+    void delete_existingExpense_returns204AndIsGone() throws Exception {
+        long expenseId = createExpense(firstAccountId, USER);
+        mockMvc.perform(delete("/expenses/" + expenseId))
+            .andExpect(status().isNoContent());
+        mockMvc.perform(get("/expenses/" + expenseId))
+            .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void delete_unknownId_returns404() throws Exception {
+        mockMvc.perform(delete("/expenses/999999"))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.code").value("NOT_FOUND"));
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.novelosoftware.expenses.controllers;
 
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -76,6 +77,17 @@ public class ExpenseController {
     @ResponseStatus(HttpStatus.CREATED)
     public CreateExpenseResponse create(@RequestBody CreateExpenseRequest request) {
         return expenseService.create(request);
+    }
+
+    @GetMapping("/{id}")
+    public Expense getById(@PathVariable Long id) {
+        return expenseService.getById(id);
+    }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable Long id) {
+        expenseService.delete(id);
     }
 
     @PutMapping("/{id}")

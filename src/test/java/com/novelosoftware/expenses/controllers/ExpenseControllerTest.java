@@ -7,6 +7,8 @@ import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -76,6 +78,48 @@ public class ExpenseControllerTest {
 
     @MockitoBean
     private ExpenseService expenseService;
+
+    // -------------------------------------------------------------------------
+    // GET /expenses/{id}
+    // -------------------------------------------------------------------------
+
+    @Test
+    void getById_found_returns200() throws Exception {
+        when(expenseService.getById(1L)).thenReturn(anExpense(1L));
+        mockMvc.perform(get("/expenses/1"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.expenseId").value(1))
+            .andExpect(jsonPath("$.description").value("Expensive Tacos"));
+    }
+
+    @Test
+    void getById_notFound_returns404() throws Exception {
+        when(expenseService.getById(999L))
+            .thenThrow(ExpenseServiceExceptions.createExpenseNotFoundException(999L));
+        mockMvc.perform(get("/expenses/999"))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+    }
+
+    // -------------------------------------------------------------------------
+    // DELETE /expenses/{id}
+    // -------------------------------------------------------------------------
+
+    @Test
+    void delete_success_returns204() throws Exception {
+        doNothing().when(expenseService).delete(1L);
+        mockMvc.perform(delete("/expenses/1"))
+            .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void delete_notFound_returns404() throws Exception {
+        doThrow(ExpenseServiceExceptions.createExpenseNotFoundException(999L))
+            .when(expenseService).delete(999L);
+        mockMvc.perform(delete("/expenses/999"))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+    }
 
     @Test
     void create_testHappyPath() throws Exception {
