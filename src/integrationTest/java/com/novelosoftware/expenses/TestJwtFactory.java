@@ -33,12 +33,20 @@ public class TestJwtFactory {
     }
 
     public static String createToken(String... scopes) {
+        return buildToken(new Date(System.currentTimeMillis() + 3_600_000), scopes);
+    }
+
+    public static String createExpiredToken(String... scopes) {
+        return buildToken(new Date(System.currentTimeMillis() - 3_600_000), scopes);
+    }
+
+    private static String buildToken(Date expiry, String... scopes) {
         try {
             JWSSigner signer = new RSASSASigner(PRIVATE_KEY);
             JWTClaimsSet claims = new JWTClaimsSet.Builder()
                     .subject("test-user")
                     .issuer("test-issuer")
-                    .expirationTime(new Date(System.currentTimeMillis() + 3_600_000))
+                    .expirationTime(expiry)
                     .claim("scp", String.join(" ", scopes))
                     .build();
             SignedJWT jwt = new SignedJWT(new JWSHeader(JWSAlgorithm.RS256), claims);

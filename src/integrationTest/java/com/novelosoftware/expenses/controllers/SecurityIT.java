@@ -1,6 +1,7 @@
 package com.novelosoftware.expenses.controllers;
 
 import com.novelosoftware.expenses.BaseIT;
+import com.novelosoftware.expenses.TestJwtFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -156,5 +157,32 @@ class SecurityIT extends BaseIT {
                 .param("start_date", "2026-01-01")
                 .param("end_date", "2026-01-31"))
             .andExpect(status().isForbidden());
+    }
+
+    // -------------------------------------------------------------------------
+    // Real signed JWT — exercises the actual NimbusJwtDecoder path
+    // -------------------------------------------------------------------------
+
+    @Test
+    void validSignedToken_isAccepted() throws Exception {
+        String token = TestJwtFactory.createToken("read:expenses");
+        mockMvc.perform(get("/expenses/{id}", expenseId)
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    void expiredSignedToken_returns401() throws Exception {
+        String token = TestJwtFactory.createExpiredToken("read:expenses");
+        mockMvc.perform(get("/expenses/{id}", expenseId)
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void malformedToken_returns401() throws Exception {
+        mockMvc.perform(get("/expenses/{id}", expenseId)
+                .header("Authorization", "Bearer not.a.valid.jwt"))
+            .andExpect(status().isUnauthorized());
     }
 }
