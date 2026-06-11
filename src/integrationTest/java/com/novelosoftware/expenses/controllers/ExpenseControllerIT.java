@@ -40,6 +40,7 @@ class ExpenseControllerIT extends BaseIT {
         createExpenseOnDate(firstAccountId, USER, "2026-05-20");
 
         mockMvc.perform(get("/expenses")
+                .with(fullScopeJwt())
                 .param("user_id", USER)
                 .param("start_date", "2026-05-01")
                 .param("end_date", "2026-05-31"))
@@ -74,7 +75,9 @@ class ExpenseControllerIT extends BaseIT {
             .filter(d -> !d.isBefore(windowStart) && !d.isAfter(windowEnd))
             .count();
 
-        mockMvc.perform(get("/expenses").param("user_id", USER))
+        mockMvc.perform(get("/expenses")
+                .with(fullScopeJwt())
+                .param("user_id", USER))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.content").isArray())
             .andExpect(jsonPath("$.content.length()").value(expectedCount));
@@ -89,6 +92,7 @@ class ExpenseControllerIT extends BaseIT {
 
         // First page: limit=2
         String firstPageResponse = mockMvc.perform(get("/expenses")
+                .with(fullScopeJwt())
                 .param("user_id", USER)
                 .param("start_date", "2026-05-01")
                 .param("end_date", "2026-05-31")
@@ -102,6 +106,7 @@ class ExpenseControllerIT extends BaseIT {
 
         // Second page using cursor
         mockMvc.perform(get("/expenses")
+                .with(fullScopeJwt())
                 .param("user_id", USER)
                 .param("start_date", "2026-05-01")
                 .param("end_date", "2026-05-31")
@@ -115,6 +120,7 @@ class ExpenseControllerIT extends BaseIT {
     @Test
     void list_missingUserId_returns400() throws Exception {
         mockMvc.perform(get("/expenses")
+                .with(fullScopeJwt())
                 .param("start_date", "2026-05-01")
                 .param("end_date", "2026-05-31"))
             .andExpect(status().isBadRequest());
@@ -123,6 +129,7 @@ class ExpenseControllerIT extends BaseIT {
     @Test
     void list_malformedCursor_returns400() throws Exception {
         mockMvc.perform(get("/expenses")
+                .with(fullScopeJwt())
                 .param("user_id", USER)
                 .param("start_date", "2026-05-01")
                 .param("end_date", "2026-05-31")
@@ -136,6 +143,7 @@ class ExpenseControllerIT extends BaseIT {
         String cursor = ExpenseCursor.encode(LocalDate.of(2026, 3, 1), 10L);
 
         mockMvc.perform(get("/expenses")
+                .with(fullScopeJwt())
                 .param("user_id", USER)
                 .param("start_date", "2026-05-01")
                 .param("end_date", "2026-05-31")
@@ -147,6 +155,7 @@ class ExpenseControllerIT extends BaseIT {
     @Test
     void list_rangeTooLarge_returns400() throws Exception {
         mockMvc.perform(get("/expenses")
+                .with(fullScopeJwt())
                 .param("user_id", USER)
                 .param("start_date", "2026-01-01")
                 .param("end_date", "2026-06-01"))
@@ -157,6 +166,7 @@ class ExpenseControllerIT extends BaseIT {
     @Test
     void list_endDateBeforeStartDate_returns400() throws Exception {
         mockMvc.perform(get("/expenses")
+                .with(fullScopeJwt())
                 .param("user_id", USER)
                 .param("start_date", "2026-05-31")
                 .param("end_date", "2026-05-01"))
@@ -167,6 +177,7 @@ class ExpenseControllerIT extends BaseIT {
     @Test
     void list_malformedStartDate_returns400() throws Exception {
         mockMvc.perform(get("/expenses")
+                .with(fullScopeJwt())
                 .param("user_id", USER)
                 .param("start_date", "not-a-date")
                 .param("end_date", "2026-05-31"))
@@ -177,6 +188,7 @@ class ExpenseControllerIT extends BaseIT {
     @Test
     void list_malformedLimit_returns400() throws Exception {
         mockMvc.perform(get("/expenses")
+                .with(fullScopeJwt())
                 .param("user_id", USER)
                 .param("start_date", "2026-05-01")
                 .param("end_date", "2026-05-31")
@@ -188,6 +200,7 @@ class ExpenseControllerIT extends BaseIT {
     @Test
     void list_limitAboveCap_returns400() throws Exception {
         mockMvc.perform(get("/expenses")
+                .with(fullScopeJwt())
                 .param("user_id", USER)
                 .param("start_date", "2026-05-01")
                 .param("end_date", "2026-05-31")
@@ -207,6 +220,7 @@ class ExpenseControllerIT extends BaseIT {
         createExpenseWithSubcategoryOnDate(firstAccountId, USER, "2026-05-15", "GROCERIES");
 
         mockMvc.perform(get("/expenses")
+                .with(fullScopeJwt())
                 .param("user_id", USER)
                 .param("start_date", "2026-05-01")
                 .param("end_date", "2026-05-31")
@@ -222,6 +236,7 @@ class ExpenseControllerIT extends BaseIT {
         createExpenseWithSubcategoryOnDate(firstAccountId, USER, "2026-05-15", "GROCERIES");
 
         mockMvc.perform(get("/expenses")
+                .with(fullScopeJwt())
                 .param("user_id", USER)
                 .param("start_date", "2026-05-01")
                 .param("end_date", "2026-05-31")
@@ -237,6 +252,7 @@ class ExpenseControllerIT extends BaseIT {
         createExpenseOnDate(secondAccountId, USER, "2026-05-15");
 
         mockMvc.perform(get("/expenses")
+                .with(fullScopeJwt())
                 .param("user_id", USER)
                 .param("start_date", "2026-05-01")
                 .param("end_date", "2026-05-31")
@@ -253,6 +269,7 @@ class ExpenseControllerIT extends BaseIT {
         createExpenseWithSubcategoryOnDate(secondAccountId, USER, "2026-05-14", "GROCERIES");
 
         mockMvc.perform(get("/expenses")
+                .with(fullScopeJwt())
                 .param("user_id", USER)
                 .param("start_date", "2026-05-01")
                 .param("end_date", "2026-05-31")
@@ -267,6 +284,7 @@ class ExpenseControllerIT extends BaseIT {
     @Test
     void list_categoryAndSubcategoryBothProvided_returns400() throws Exception {
         mockMvc.perform(get("/expenses")
+                .with(fullScopeJwt())
                 .param("user_id", USER)
                 .param("start_date", "2026-05-01")
                 .param("end_date", "2026-05-31")
@@ -286,6 +304,7 @@ class ExpenseControllerIT extends BaseIT {
         createExpenseWithSubcategoryOnDate(firstAccountId, USER, "2026-05-18", "RESTAURANT");
 
         String firstPageResponse = mockMvc.perform(get("/expenses")
+                .with(fullScopeJwt())
                 .param("user_id", USER)
                 .param("start_date", "2026-05-01")
                 .param("end_date", "2026-05-31")
@@ -299,6 +318,7 @@ class ExpenseControllerIT extends BaseIT {
         String nextCursor = objectMapper.readTree(firstPageResponse).path("nextCursor").asText();
 
         mockMvc.perform(get("/expenses")
+                .with(fullScopeJwt())
                 .param("user_id", USER)
                 .param("start_date", "2026-05-01")
                 .param("end_date", "2026-05-31")
@@ -317,6 +337,7 @@ class ExpenseControllerIT extends BaseIT {
         createExpenseOnDate(firstAccountId, USER, "2026-05-15");
 
         mockMvc.perform(get("/expenses")
+                .with(fullScopeJwt())
                 .param("user_id", USER)
                 .param("start_date", "2026-05-01")
                 .param("end_date", "2026-05-31"))
@@ -333,6 +354,7 @@ class ExpenseControllerIT extends BaseIT {
     @Test
     void create_happyPath_returns201WithWrappedExpense() throws Exception {
         mockMvc.perform(post("/expenses")
+                .with(fullScopeJwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     { "value": { "expenseDate": "2026-05-27", "accountId": %d,
@@ -352,6 +374,7 @@ class ExpenseControllerIT extends BaseIT {
     @Test
     void create_accountDoesNotExist_returns404() throws Exception {
         mockMvc.perform(post("/expenses")
+                .with(fullScopeJwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     { "value": { "expenseDate": "2026-05-27", "accountId": 999999,
@@ -365,6 +388,7 @@ class ExpenseControllerIT extends BaseIT {
     @Test
     void create_accountBelongsToDifferentUser_returns403() throws Exception {
         mockMvc.perform(post("/expenses")
+                .with(fullScopeJwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     { "value": { "expenseDate": "2026-05-27", "accountId": %d,
@@ -378,6 +402,7 @@ class ExpenseControllerIT extends BaseIT {
     @Test
     void create_missingExpenseDate_returns400() throws Exception {
         mockMvc.perform(post("/expenses")
+                .with(fullScopeJwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     { "value": { "expenseDate": null, "accountId": %d,
@@ -392,6 +417,7 @@ class ExpenseControllerIT extends BaseIT {
     @Test
     void create_missingAccountId_returns400() throws Exception {
         mockMvc.perform(post("/expenses")
+                .with(fullScopeJwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     { "value": { "expenseDate": "2026-05-27", "accountId": null,
@@ -405,6 +431,7 @@ class ExpenseControllerIT extends BaseIT {
     @Test
     void create_missingAmount_returns400() throws Exception {
         mockMvc.perform(post("/expenses")
+                .with(fullScopeJwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     { "value": { "expenseDate": "2026-05-27", "accountId": %d,
@@ -418,6 +445,7 @@ class ExpenseControllerIT extends BaseIT {
     @Test
     void create_missingDescription_returns400() throws Exception {
         mockMvc.perform(post("/expenses")
+                .with(fullScopeJwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     { "value": { "expenseDate": "2026-05-27", "accountId": %d,
@@ -431,6 +459,7 @@ class ExpenseControllerIT extends BaseIT {
     @Test
     void create_missingSubCategory_returns400() throws Exception {
         mockMvc.perform(post("/expenses")
+                .with(fullScopeJwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     { "value": { "expenseDate": "2026-05-27", "accountId": %d,
@@ -444,6 +473,7 @@ class ExpenseControllerIT extends BaseIT {
     @Test
     void create_missingCreatedBy_returns400() throws Exception {
         mockMvc.perform(post("/expenses")
+                .with(fullScopeJwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     { "value": { "expenseDate": "2026-05-27", "accountId": %d,
@@ -457,6 +487,7 @@ class ExpenseControllerIT extends BaseIT {
     @Test
     void create_invalidSubCategoryEnum_returns400WithAcceptedValues() throws Exception {
         mockMvc.perform(post("/expenses")
+                .with(fullScopeJwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     { "value": { "expenseDate": "2026-05-27", "accountId": %d,
@@ -471,6 +502,7 @@ class ExpenseControllerIT extends BaseIT {
     @Test
     void create_malformedJson_returns400() throws Exception {
         mockMvc.perform(post("/expenses")
+                .with(fullScopeJwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{ unclosed"))
             .andExpect(status().isBadRequest())
@@ -485,6 +517,7 @@ class ExpenseControllerIT extends BaseIT {
     @Test
     void create_subCategoryDerivedAndRoundTripped() throws Exception {
         mockMvc.perform(post("/expenses")
+                .with(fullScopeJwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     { "value": { "expenseDate": "2026-05-27", "accountId": %d,
@@ -499,6 +532,7 @@ class ExpenseControllerIT extends BaseIT {
     void update_happyPath() throws Exception {
         Long expenseId = createExpense(firstAccountId, USER);
         mockMvc.perform(put("/expenses/" + expenseId)
+                .with(fullScopeJwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -521,6 +555,7 @@ class ExpenseControllerIT extends BaseIT {
     void update_unauthorizedOwnerChange() throws Exception {
         Long expenseId = createExpense(firstAccountId, USER);
         mockMvc.perform(put("/expenses/" + expenseId)
+                .with(fullScopeJwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -545,6 +580,7 @@ class ExpenseControllerIT extends BaseIT {
         Long expenseId = createExpense(firstAccountId, USER);
         Long thirdAccount = createAccount("third-person-account", "another-user-id");
         mockMvc.perform(put("/expenses/" + expenseId)
+                .with(fullScopeJwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -567,6 +603,7 @@ class ExpenseControllerIT extends BaseIT {
     @Test
     void update_expenseDoesNotExists() throws Exception {
         mockMvc.perform(put("/expenses/999999")
+                .with(fullScopeJwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -593,7 +630,8 @@ class ExpenseControllerIT extends BaseIT {
     @Test
     void getById_existingExpense_returns200WithBody() throws Exception {
         long expenseId = createExpense(firstAccountId, USER);
-        mockMvc.perform(get("/expenses/" + expenseId))
+        mockMvc.perform(get("/expenses/" + expenseId)
+                .with(fullScopeJwt()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.expenseId").value(expenseId))
             .andExpect(jsonPath("$.accountId").value(firstAccountId))
@@ -602,7 +640,8 @@ class ExpenseControllerIT extends BaseIT {
 
     @Test
     void getById_unknownId_returns404() throws Exception {
-        mockMvc.perform(get("/expenses/999999"))
+        mockMvc.perform(get("/expenses/999999")
+                .with(fullScopeJwt()))
             .andExpect(status().isNotFound())
             .andExpect(jsonPath("$.code").value("NOT_FOUND"));
     }
@@ -614,15 +653,18 @@ class ExpenseControllerIT extends BaseIT {
     @Test
     void delete_existingExpense_returns204AndIsGone() throws Exception {
         long expenseId = createExpense(firstAccountId, USER);
-        mockMvc.perform(delete("/expenses/" + expenseId))
+        mockMvc.perform(delete("/expenses/" + expenseId)
+                .with(fullScopeJwt()))
             .andExpect(status().isNoContent());
-        mockMvc.perform(get("/expenses/" + expenseId))
+        mockMvc.perform(get("/expenses/" + expenseId)
+                .with(fullScopeJwt()))
             .andExpect(status().isNotFound());
     }
 
     @Test
     void delete_unknownId_returns404() throws Exception {
-        mockMvc.perform(delete("/expenses/999999"))
+        mockMvc.perform(delete("/expenses/999999")
+                .with(fullScopeJwt()))
             .andExpect(status().isNotFound())
             .andExpect(jsonPath("$.code").value("NOT_FOUND"));
     }
@@ -643,6 +685,7 @@ class ExpenseControllerIT extends BaseIT {
             """.formatted(firstAccountId, USER, firstAccountId, USER);
 
         mockMvc.perform(post("/expenses/bulk")
+                .with(fullScopeJwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(payload))
             .andExpect(status().isCreated())
@@ -653,6 +696,7 @@ class ExpenseControllerIT extends BaseIT {
 
         // Verify both rows are visible via GET
         mockMvc.perform(get("/expenses")
+                .with(fullScopeJwt())
                 .param("user_id", USER)
                 .param("start_date", "2026-05-01")
                 .param("end_date", "2026-05-31"))
@@ -672,12 +716,14 @@ class ExpenseControllerIT extends BaseIT {
             """.formatted(firstAccountId, USER, USER);
 
         mockMvc.perform(post("/expenses/bulk")
+                .with(fullScopeJwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(payload))
             .andExpect(status().isNotFound());
 
         // No expenses should have been persisted
         mockMvc.perform(get("/expenses")
+                .with(fullScopeJwt())
                 .param("user_id", USER)
                 .param("start_date", "2026-05-01")
                 .param("end_date", "2026-05-31"))
@@ -688,6 +734,7 @@ class ExpenseControllerIT extends BaseIT {
     @Test
     void bulkCreate_emptyList_returns400() throws Exception {
         mockMvc.perform(post("/expenses/bulk")
+                .with(fullScopeJwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{ \"expenses\": [] }"))
             .andExpect(status().isBadRequest())
@@ -708,6 +755,7 @@ class ExpenseControllerIT extends BaseIT {
         String payload = "{ \"expenses\": [" + items + "] }";
 
         mockMvc.perform(post("/expenses/bulk")
+                .with(fullScopeJwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(payload))
             .andExpect(status().isBadRequest());
@@ -717,6 +765,7 @@ class ExpenseControllerIT extends BaseIT {
     void update_accountNotFound() throws Exception {
         long expenseId = createExpense(firstAccountId, USER);
         mockMvc.perform(put("/expenses/" + expenseId)
+                .with(fullScopeJwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
