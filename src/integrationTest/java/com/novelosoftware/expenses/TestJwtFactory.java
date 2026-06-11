@@ -47,7 +47,7 @@ public class TestJwtFactory {
                     .subject("test-user")
                     .issuer("test-issuer")
                     .expirationTime(expiry)
-                    .claim("scp", String.join(" ", scopes))
+                    .claim("scope", String.join(" ", scopes))
                     .build();
             SignedJWT jwt = new SignedJWT(new JWSHeader(JWSAlgorithm.RS256), claims);
             jwt.sign(signer);
