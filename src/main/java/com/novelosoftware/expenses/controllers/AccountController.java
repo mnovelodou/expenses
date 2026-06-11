@@ -5,6 +5,7 @@ import com.novelosoftware.expenses.services.AccountService;
 import com.novelosoftware.expenses.services.ExpenseService;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -36,6 +37,7 @@ public class AccountController {
      * @return the account
      */
     @GetMapping("/{id}")
+    @PreAuthorize("hasAuthority('SCOPE_read:accounts')")
     public Account getById(@PathVariable Long id) {
         return service.getById(id);
     }
@@ -49,6 +51,7 @@ public class AccountController {
      * @return paginated accounts owned by the user
      */
     @GetMapping("/user/{userId}")
+    @PreAuthorize("hasAuthority('SCOPE_read:accounts')")
     public PageResponse<Account> findByUser(
             @PathVariable String userId,
             @RequestParam(defaultValue = "0") int page,
@@ -64,6 +67,7 @@ public class AccountController {
      */
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasAuthority('SCOPE_write:accounts')")
     public CreateAccountResponse create(@RequestBody CreateAccountRequest request) {
         return service.create(request);
     }
@@ -76,6 +80,7 @@ public class AccountController {
      * @return the updated account wrapped in a response
      */
     @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('SCOPE_write:accounts')")
     public UpdateAccountResponse update(@PathVariable Long id, @RequestBody UpdateAccountRequest request) {
         return service.update(id, request);
     }
@@ -87,6 +92,7 @@ public class AccountController {
      */
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("hasAuthority('SCOPE_write:accounts')")
     public void delete(@PathVariable Long id) {
         service.delete(id);
     }
@@ -105,6 +111,7 @@ public class AccountController {
      * @return a page of expenses and an optional next-page cursor
      */
     @GetMapping("/{id}/expenses")
+    @PreAuthorize("hasAuthority('SCOPE_read:expenses')")
     public CursorPageResponse<Expense> listExpenses(
             @PathVariable Long id,
             @RequestParam(value = "start_date", required = false)

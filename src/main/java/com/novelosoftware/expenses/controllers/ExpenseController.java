@@ -2,6 +2,7 @@ package com.novelosoftware.expenses.controllers;
 
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -55,6 +56,7 @@ public class ExpenseController {
      * @return a page of expenses and an optional next-page cursor
      */
     @GetMapping
+    @PreAuthorize("hasAuthority('SCOPE_read:expenses')")
     public CursorPageResponse<Expense> list(
             @RequestParam(value = "user_id", required = false) String userId,
             @RequestParam(value = "start_date", required = false)
@@ -77,28 +79,33 @@ public class ExpenseController {
      */
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasAuthority('SCOPE_write:expenses')")
     public CreateExpenseResponse create(@RequestBody CreateExpenseRequest request) {
         return expenseService.create(request);
     }
 
     @PostMapping("/bulk")
     @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasAuthority('SCOPE_write:expenses')")
     public BulkCreateExpensesResponse bulkCreate(@RequestBody BulkCreateExpensesRequest request) {
         return new BulkCreateExpensesResponse(expenseService.bulkCreate(request));
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAuthority('SCOPE_read:expenses')")
     public Expense getById(@PathVariable Long id) {
         return expenseService.getById(id);
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("hasAuthority('SCOPE_write:expenses')")
     public void delete(@PathVariable Long id) {
         expenseService.delete(id);
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('SCOPE_write:expenses')")
     public UpdateExpenseResponse update(@PathVariable Long id, @RequestBody UpdateExpenseRequest request) {
         return expenseService.update(id, request);
     }

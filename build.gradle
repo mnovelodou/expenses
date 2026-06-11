@@ -25,7 +25,8 @@ configurations {
 sourceSets {
 	integrationTest {
 		compileClasspath += sourceSets.main.output
-		runtimeClasspath += sourceSets.main.output
+		// include test resources (e.g. RSA key pair) on the integration test classpath
+		runtimeClasspath += sourceSets.main.output + sourceSets.test.output
 	}
 }
 
@@ -33,9 +34,11 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-jdbc'
+	implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
 	implementation 'org.postgresql:postgresql'
 
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testImplementation 'org.springframework.security:spring-security-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
 	integrationTestImplementation 'org.springframework.boot:spring-boot-testcontainers'
@@ -61,6 +64,13 @@ tasks.register('integrationTest', Test) {
 tasks.register('localRun', Exec) {
 	commandLine 'docker', 'compose', 'up', '-d', '--wait'
 	finalizedBy 'bootRun'
+}
+
+bootRun {
+	// activate local profile so application-local.properties (DB, RSA key) is picked up
+	args '--spring.profiles.active=local'
+	// make test resources (RSA key pair) available at runtime without bundling in the JAR
+	classpath += sourceSets.test.output
 }
 
 bootRun.mustRunAfter 'localRun'

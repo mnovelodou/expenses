@@ -7,6 +7,7 @@ import com.novelosoftware.expenses.services.AccountService;
 import com.novelosoftware.expenses.services.ExpenseService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
@@ -30,6 +31,7 @@ import static com.novelosoftware.expenses.exceptions.AccountServiceExceptions.*;
  * Test class for {@link AccountController.class}
  */
 @WebMvcTest(AccountController.class)
+@AutoConfigureMockMvc(addFilters = false)
 @Import(GlobalExceptionHandler.class)
 class AccountControllerTest {
 

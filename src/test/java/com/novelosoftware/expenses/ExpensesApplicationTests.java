@@ -9,7 +9,10 @@ import javax.sql.DataSource;
 /**
  * Test class for {@link ExpensesApplication.class}
  */
-@SpringBootTest(properties = "spring.sql.init.mode=never")
+@SpringBootTest(properties = {
+		"spring.sql.init.mode=never",
+		"spring.security.oauth2.resourceserver.jwt.public-key-location=classpath:local/test-rsa-public.pem"
+})
 class ExpensesApplicationTests {
 
 	@MockitoBean

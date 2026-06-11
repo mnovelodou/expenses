@@ -3,6 +3,8 @@ package com.novelosoftware.expenses.exceptions;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.novelosoftware.expenses.exceptions.AccountServiceExceptions.AccountNotFoundException;
 import com.novelosoftware.expenses.exceptions.AccountServiceExceptions.AccountValidationException;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import org.slf4j.Logger;
@@ -160,6 +162,16 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleInvalidCursorException(InvalidCursorException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
             .body(new ErrorResponse("BAD_REQUEST", ex.getMessage()));
+    }
+
+    /**
+     * Re-throw Spring Security exceptions so ExceptionTranslationFilter handles them.
+     * Without this, the catch-all below would swallow AccessDeniedException (403) and
+     * AuthenticationException (401) thrown by @PreAuthorize, returning 500 instead.
+     */
+    @ExceptionHandler({AccessDeniedException.class, AuthenticationException.class})
+    public void rethrowSecurityExceptions(RuntimeException ex) {
+        throw ex;
     }
 
     /**
