@@ -1,0 +1,5 @@
+[build]
+builder = "railpack"
+
+[deploy]
+startCommand = "java -Dspring.profiles.active=production -Dserver.port=$PORT -jar $(ls -1 build/libs/*.jar | grep -v plain)"
