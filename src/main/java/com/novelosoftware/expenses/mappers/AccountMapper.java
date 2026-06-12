@@ -46,13 +46,15 @@ public final class AccountMapper {
      */
     public static AccountEntity toEntity(CreateAccountRequest request) {
         Account account = request.value();
+        BigDecimal initial = Optional.ofNullable(account.initialAmount()).orElse(BigDecimal.ZERO);
+        BigDecimal current = Optional.ofNullable(account.currentAmount()).orElse(initial);
         return new AccountEntity(
             null,
             account.name(),
             account.accountType(),
             account.currency(),
-            Optional.ofNullable(account.initialAmount()).orElse(BigDecimal.ZERO),
-            Optional.ofNullable(account.initialAmount()).orElse(BigDecimal.ZERO),
+            initial,
+            current,
             OffsetDateTime.now(),
             OffsetDateTime.now(),
             account.createdBy()

@@ -36,6 +36,21 @@ class AccountControllerIT extends BaseIT {
     }
 
     @Test
+    void create_withDistinctCurrentAmount_persistsBothAmountsIndependently() throws Exception {
+        mockMvc.perform(post("/accounts")
+                .with(fullScopeJwt())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    { "value": { "name": "Imported", "accountType": "DEBIT",
+                      "currency": "USD", "initialAmount": 100.00, "currentAmount": 250.00,
+                      "createdBy": "user-it" } }
+                """))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.value.initialAmount").value(100.00))
+            .andExpect(jsonPath("$.value.currentAmount").value(250.00));
+    }
+
+    @Test
     void create_missingName_returns400() throws Exception {
         mockMvc.perform(post("/accounts")
                 .with(fullScopeJwt())
