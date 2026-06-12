@@ -1,9 +1,13 @@
 package com.novelosoftware.expenses.security;
 
+import com.nimbusds.jose.JOSEObjectType;
+import com.nimbusds.jose.proc.DefaultJOSEObjectTypeVerifier;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
@@ -12,6 +16,9 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtValidators;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 
@@ -45,5 +52,26 @@ public class SecurityConfig {
             response.setContentType("application/json");
             response.getWriter().write("{\"code\":\"UNAUTHORIZED\",\"message\":\"Authentication failed\"}");
         };
+    }
+
+    @Configuration
+    @ConditionalOnExpression("!'${spring.security.oauth2.resourceserver.jwt.issuer-uri:}'.isEmpty()")
+    static class IssuerUriJwtDecoderConfig {
+
+        @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}")
+        private String issuerUri;
+
+        @Bean
+        public JwtDecoder jwtDecoder() {
+            NimbusJwtDecoder decoder = NimbusJwtDecoder.withIssuerLocation(issuerUri)
+                    .jwtProcessorCustomizer(p -> p.setJWSTypeVerifier(
+                            new DefaultJOSEObjectTypeVerifier<>(
+                                    new JOSEObjectType("at+jwt"),
+                                    JOSEObjectType.JWT,
+                                    null)))
+                    .build();
+            decoder.setJwtValidator(JwtValidators.createDefaultWithIssuer(issuerUri));
+            return decoder;
+        }
     }
 }
