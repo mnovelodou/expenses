@@ -1,12 +1,12 @@
 ## Context
 
-`initialAmount` represents the opening balance of an account. Currently it is set on creation and excluded from the `UPDATE` SQL, making it permanently immutable. The `current_amount` tracks the live balance (initial + all transactions). When `initialAmount` changes, `current_amount` must be adjusted by the same delta so existing transactions remain accurate.
+`initialAmount` represents the opening balance of an account. Currently it is set on creation and excluded from the `UPDATE` SQL, making it permanently immutable. `currentAmount` is an independently managed field; clients send the desired value on every update.
 
 ## Goals / Non-Goals
 
 **Goals:**
 - Allow `initialAmount` to be updated via `PUT /accounts/{id}`.
-- Keep `current_amount` consistent: apply the delta (`new - old`) to `current_amount` on every update.
+- `currentAmount` remains independently controlled — unchanged by modifications to `initialAmount`.
 - Cover the new behaviour with unit tests and integration tests.
 
 **Non-Goals:**
@@ -16,21 +16,19 @@
 
 ## Decisions
 
-**Delta adjustment for `current_amount`**
-When `initialAmount` changes from `old` to `new`, apply `current_amount += (new - old)`. This preserves the effect of all recorded transactions without touching any transaction records.
-
-Alternative considered: recalculate `current_amount` from scratch by summing transactions. Rejected because the expenses table may not always capture every historical transaction, and it adds a second query with no benefit for the common case.
-
-**Where to compute the delta**
-The delta is computed in `AccountService.update`, not the repository. The service fetches the existing entity first (already done for the "not found" check), so `oldInitialAmount` is available there before the update query runs. The repository receives the final `currentAmount` to persist.
+**`initialAmount` and `currentAmount` are independent**
+Both fields follow the same null-coalescing rule: use the caller-provided value when present, otherwise preserve the stored value. There is no derived relationship between them — changing `initialAmount` has no effect on `currentAmount`.
 
 **SQL change**
-Add `initial_amount = ?` to the `UPDATE` SET clause and pass the new `initialAmount` as a parameter. No schema migration needed; the column already exists.
+Add `initial_amount = ?` to the `UPDATE` SET clause and pass the resolved `initialAmount` as a parameter. No schema migration needed; the column already exists.
+
+**Where to resolve null fields**
+`AccountService.update` fetches the existing entity (already required for the not-found check), resolves both fields via null-coalescing, and passes the fully populated entity to the repository.
 
 ## Risks / Trade-offs
 
-- [Concurrent updates] Two simultaneous updates could produce an inconsistent `current_amount`. → Acceptable for now; no concurrent-write SLA exists on this service. A future optimistic-lock column would address this.
+- [Concurrent updates] Two simultaneous updates could produce stale reads for the null-coalescing fallback. → Acceptable for now; no concurrent-write SLA exists on this service.
 
 ## Migration Plan
 
-No schema changes. Deploy the updated service. Existing accounts are unaffected until they receive an update request that changes `initialAmount`.
+No schema changes. Deploy the updated service. Existing accounts are unaffected until they receive an update request.
