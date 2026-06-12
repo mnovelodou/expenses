@@ -70,7 +70,8 @@ public abstract class BaseIT {
                 .with(fullScopeJwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                    { "value": { "name": "%s", "accountType": "DEBIT", "currency": "USD", "initialAmount": 1000.00, "createdBy": "%s" } }
+                    { "value": { "name": "%s", "accountType": "DEBIT", "currency": "USD",
+                      "initialAmount": 1000.00, "createdBy": "%s", "periodStart": "2026-06-01" } }
                     """.formatted(name, userId)))
             .andExpect(status().isCreated())
             .andReturn().getResponse().getContentAsString();

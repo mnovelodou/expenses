@@ -23,7 +23,8 @@ class AccountControllerIT extends BaseIT {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     { "value": { "name": "Checking", "accountType": "DEBIT",
-                      "currency": "USD", "initialAmount": 1000.00, "createdBy": "user-it" } }
+                      "currency": "USD", "initialAmount": 1000.00, "createdBy": "user-it",
+                      "periodStart": "2026-06-01" } }
                 """))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.value.accountId").isNumber())
@@ -32,7 +33,8 @@ class AccountControllerIT extends BaseIT {
             .andExpect(jsonPath("$.value.currency").value("USD"))
             .andExpect(jsonPath("$.value.initialAmount").value(1000.00))
             .andExpect(jsonPath("$.value.currentAmount").value(1000.00))
-            .andExpect(jsonPath("$.value.createdBy").value("user-it"));
+            .andExpect(jsonPath("$.value.createdBy").value("user-it"))
+            .andExpect(jsonPath("$.value.periodStart").value("2026-06-01"));
     }
 
     @Test
@@ -476,5 +478,89 @@ class AccountControllerIT extends BaseIT {
                 .with(fullScopeJwt()))
             .andExpect(jsonPath("$.currentAmount").value(500.00))
             .andExpect(jsonPath("$.initialAmount").value(1000.00));
+    }
+
+    // -------------------------------------------------------------------------
+    // period_start and gap
+    // -------------------------------------------------------------------------
+
+    @Test
+    void create_missingPeriodStart_returns400() throws Exception {
+        mockMvc.perform(post("/accounts")
+                .with(fullScopeJwt())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    { "value": { "name": "Checking", "accountType": "DEBIT",
+                      "currency": "USD", "initialAmount": 1000.00, "createdBy": "user-it" } }
+                """))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+    }
+
+    @Test
+    void update_withoutPeriodStart_preservesExistingPeriodStart() throws Exception {
+        long id = createAccount("Period Card", "user-it");
+
+        mockMvc.perform(put("/accounts/{id}", id)
+                .with(fullScopeJwt())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    { "value": { "name": "Period Card", "accountType": "DEBIT",
+                      "currency": "USD", "currentAmount": 900.00, "createdBy": "user-it" } }
+                """))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(get("/accounts/{id}", id)
+                .with(fullScopeJwt()))
+            .andExpect(jsonPath("$.periodStart").value("2026-06-01"));
+    }
+
+    @Test
+    void getById_withIncludeGap_returnsGapField() throws Exception {
+        long id = createAccount("Gap Card", "user-it");
+        createExpenseOnDate(id, "user-it", "2026-06-10");
+
+        mockMvc.perform(get("/accounts/{id}", id)
+                .with(fullScopeJwt())
+                .param("includeGap", "true"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.gap").exists());
+    }
+
+    @Test
+    void getById_withoutIncludeGap_hasNoGapField() throws Exception {
+        long id = createAccount("No Gap Card", "user-it");
+
+        mockMvc.perform(get("/accounts/{id}", id)
+                .with(fullScopeJwt()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.gap").doesNotExist());
+    }
+
+    @Test
+    void getById_gapCalculation_matchesExpectedValue() throws Exception {
+        long id = createAccount("Calc Card", "user-it"); // initialAmount=1000, currentAmount=1000
+        createExpenseOnDate(id, "user-it", "2026-06-05"); // amount=42.50
+        createExpenseOnDate(id, "user-it", "2026-06-10"); // amount=42.50
+
+        // gap = currentAmount(1000) - initialAmount(1000) - expenses(85.00) = -85.00
+        mockMvc.perform(get("/accounts/{id}", id)
+                .with(fullScopeJwt())
+                .param("includeGap", "true"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.gap").value(-85.00));
+    }
+
+    @Test
+    void getByUser_withIncludeGap_returnsGapInEachAccount() throws Exception {
+        createAccount("Account A", "user-gap-list");
+        createAccount("Account B", "user-gap-list");
+
+        mockMvc.perform(get("/accounts/user/{userId}", "user-gap-list")
+                .with(fullScopeJwt())
+                .param("includeGap", "true"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content[0].gap").exists())
+            .andExpect(jsonPath("$.content[1].gap").exists());
     }
 }

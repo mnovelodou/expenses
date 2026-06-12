@@ -38,8 +38,10 @@ public class AccountController {
      */
     @GetMapping("/{id}")
     @PreAuthorize("hasAuthority('SCOPE_read:accounts')")
-    public Account getById(@PathVariable Long id) {
-        return service.getById(id);
+    public Account getById(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "false") boolean includeGap) {
+        return service.getById(id, includeGap);
     }
 
     /**
@@ -55,8 +57,9 @@ public class AccountController {
     public PageResponse<Account> findByUser(
             @PathVariable String userId,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        return service.findByUser(userId, page, size);
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "false") boolean includeGap) {
+        return service.findByUser(userId, page, size, includeGap);
     }
 
     /**

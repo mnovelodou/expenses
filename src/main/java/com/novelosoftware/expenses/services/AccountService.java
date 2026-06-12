@@ -1,11 +1,14 @@
 package com.novelosoftware.expenses.services;
 
 import com.novelosoftware.expenses.dto.*;
+import com.novelosoftware.expenses.entities.AccountEntity;
 import com.novelosoftware.expenses.exceptions.AccountServiceExceptions;
 import com.novelosoftware.expenses.mappers.AccountMapper;
 import com.novelosoftware.expenses.repositories.AccountRepository;
 
 import ch.qos.logback.core.util.StringUtil;
+
+import java.math.BigDecimal;
 
 import org.springframework.stereotype.Service;
 
@@ -30,29 +33,47 @@ public class AccountService {
     /**
      * Returns a single account by ID.
      *
-     * @param id the account ID
+     * @param id         the account ID
+     * @param includeGap if true, computes and attaches the reconciliation gap
      * @return the account DTO
      * @throws AccountNotFoundException if no account exists with the given ID
      */
-    public Account getById(Long id) {
-        return repo.findById(id)
-            .map(AccountMapper::toDto)
+    public Account getById(Long id, boolean includeGap) {
+        var entity = repo.findById(id)
             .orElseThrow(() -> AccountServiceExceptions.createAccountNotFoundException(id));
+        return AccountMapper.toDto(entity, includeGap ? computeGap(entity) : null);
+    }
+
+    /**
+     * Returns a single account by ID without gap calculation.
+     */
+    public Account getById(Long id) {
+        return getById(id, false);
     }
 
     /**
      * Returns a paginated list of accounts belonging to a given user.
      *
-     * @param userId the user ID to filter by
-     * @param page   zero-based page number
-     * @param size   number of items per page
+     * @param userId     the user ID to filter by
+     * @param page       zero-based page number
+     * @param size       number of items per page
+     * @param includeGap if true, computes and attaches the reconciliation gap for each account
      * @return paginated response containing account DTOs and pagination metadata
      */
-    public PageResponse<Account> findByUser(String userId, int page, int size) {
+    public PageResponse<Account> findByUser(String userId, int page, int size, boolean includeGap) {
         var total = repo.countByUser(userId);
         var content = repo.findByUser(userId, size, page * size)
-            .stream().map(AccountMapper::toDto).toList();
+            .stream()
+            .map(e -> AccountMapper.toDto(e, includeGap ? computeGap(e) : null))
+            .toList();
         return PageResponse.of(content, page, size, total);
+    }
+
+    /**
+     * Returns a paginated list of accounts belonging to a given user without gap calculation.
+     */
+    public PageResponse<Account> findByUser(String userId, int page, int size) {
+        return findByUser(userId, page, size, false);
     }
 
     /**
@@ -63,10 +84,10 @@ public class AccountService {
      */
     public CreateAccountResponse create(CreateAccountRequest request) {
         Account account = request.value();
-        validateAccountName(account);
+        validateForCreate(account);
 
         var entity = AccountMapper.toEntity(request);
-        return new CreateAccountResponse(AccountMapper.toDto(repo.create(entity)));
+        return new CreateAccountResponse(AccountMapper.toDto(repo.create(entity), null));
     }
 
     /**
@@ -87,7 +108,7 @@ public class AccountService {
             .currentAmount(request.value().currentAmount() != null ? request.value().currentAmount() : existing.currentAmount())
             .build();
         return repo.update(accountId, entity)
-            .map(AccountMapper::toDto)
+            .map(e -> AccountMapper.toDto(e, null))
             .map(UpdateAccountResponse::new)
             .orElseThrow(() -> AccountServiceExceptions.createAccountNotFoundException(accountId));
     }
@@ -115,5 +136,20 @@ public class AccountService {
         if (account.accountType() == null) {
             throw AccountServiceExceptions.createValidationException("Account type cannot be empty");
         }
+    }
+
+    public void validateForCreate(Account account) {
+        validateAccountName(account);
+        if (account.periodStart() == null) {
+            throw AccountServiceExceptions.createValidationException("period_start is required when creating an account");
+        }
+    }
+
+    private BigDecimal computeGap(AccountEntity entity) {
+        if (entity.periodStart() == null) {
+            return null;
+        }
+        var expenseSum = repo.sumExpensesSince(entity.accountId(), entity.periodStart());
+        return entity.currentAmount().subtract(entity.initialAmount()).subtract(expenseSum);
     }
 }

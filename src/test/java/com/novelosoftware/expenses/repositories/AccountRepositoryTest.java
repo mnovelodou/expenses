@@ -60,7 +60,7 @@ class AccountRepositoryTest {
     @Test
     void create_insertsAndReturnsEntity() {
         var entity = anEntity(null);
-        when(jdbc.queryForObject(anyString(), any(RowMapper.class), any(), any(), any(), any(), any(), any()))
+        when(jdbc.queryForObject(anyString(), any(RowMapper.class), any(), any(), any(), any(), any(), any(), any()))
             .thenReturn(anEntity(1L));
 
         var result = repo.create(entity);
@@ -122,6 +122,6 @@ class AccountRepositoryTest {
 
     private AccountEntity anEntity(Long id) {
         return new AccountEntity(id, "Checking", AccountType.DEBIT, "USD",
-            new BigDecimal("1000.00"), new BigDecimal("1000.00"), null, null, "user-1");
+            new BigDecimal("1000.00"), new BigDecimal("1000.00"), null, null, "user-1", null);
     }
 }

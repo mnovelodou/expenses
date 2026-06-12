@@ -27,3 +27,6 @@ CREATE TABLE IF NOT EXISTS expenses (
 );
 
 CREATE INDEX IF NOT EXISTS idx_expenses_user_date ON expenses(created_by, expense_date DESC, expense_id DESC);
+
+-- Migrations
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS period_start DATE;

@@ -14,6 +14,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -30,30 +31,36 @@ class AccountServiceTest {
 
     private static final Account VALID_ACCOUNT = new Account(
                 null,
-                "Checking", 
-                AccountType.DEBIT, 
-                "USD", 
+                "Checking",
+                AccountType.DEBIT,
+                "USD",
                 new BigDecimal("1000.00"),
                 null,
-                "user-1");
+                "user-1",
+                LocalDate.of(2026, 6, 1),
+                null);
 
     private static final Account INVALID_ACCOUNT_BAD_NAME = new Account(
                 null,
-                "", 
-                AccountType.DEBIT, 
-                "USD", 
+                "",
+                AccountType.DEBIT,
+                "USD",
                 new BigDecimal("1000.00"),
                 null,
-                "user-1");
+                "user-1",
+                LocalDate.of(2026, 6, 1),
+                null);
 
     private static final Account INVALID_ACCOUNT_BAD_ACCOUNT_TYPE = new Account(
                 null,
-                "Checking", 
-                null, 
-                "USD", 
+                "Checking",
+                null,
+                "USD",
                 new BigDecimal("1000.00"),
                 null,
-                "user-1");
+                "user-1",
+                LocalDate.of(2026, 6, 1),
+                null);
 
     private final AccountRepository repo = mock(AccountRepository.class);
     private final AccountService service = new AccountService(repo);
@@ -183,6 +190,6 @@ class AccountServiceTest {
 
     private AccountEntity anEntity(Long id) {
         return new AccountEntity(id, "Checking", AccountType.DEBIT, "USD",
-            new BigDecimal("1000.00"), new BigDecimal("1000.00"), null, null, "user-1");
+            new BigDecimal("1000.00"), new BigDecimal("1000.00"), null, null, "user-1", null);
     }
 }

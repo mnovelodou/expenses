@@ -47,7 +47,7 @@ class AccountControllerTest {
     @Test
     void getByUser_returnsPaginatedAccounts() throws Exception {
         var page = new PageResponse<>(List.of(anAccount(1L)), 0, 20, 1L, 1);
-        when(service.findByUser("user-1", 0, 20)).thenReturn(page);
+        when(service.findByUser("user-1", 0, 20, false)).thenReturn(page);
 
         mockMvc.perform(get("/accounts/user/user-1"))
             .andExpect(status().isOk())
@@ -60,7 +60,7 @@ class AccountControllerTest {
 
     @Test
     void getById_returnsOk() throws Exception {
-        when(service.getById(1L)).thenReturn(anAccount(1L));
+        when(service.getById(1L, false)).thenReturn(anAccount(1L));
 
         mockMvc.perform(get("/accounts/1"))
             .andExpect(status().isOk())
@@ -69,7 +69,7 @@ class AccountControllerTest {
 
     @Test
     void getById_notFound_returns404() throws Exception {
-        when(service.getById(99L)).thenThrow(createAccountNotFoundException(99L));
+        when(service.getById(99L, false)).thenThrow(createAccountNotFoundException(99L));
 
         mockMvc.perform(get("/accounts/99"))
             .andExpect(status().isNotFound())
@@ -184,6 +184,6 @@ class AccountControllerTest {
 
     private Account anAccount(Long id) {
         return new Account(id, "Checking", AccountType.DEBIT, "USD",
-            new BigDecimal("1000.00"), new BigDecimal("1000.00"), "user-1");
+            new BigDecimal("1000.00"), new BigDecimal("1000.00"), "user-1", null, null);
     }
 }
