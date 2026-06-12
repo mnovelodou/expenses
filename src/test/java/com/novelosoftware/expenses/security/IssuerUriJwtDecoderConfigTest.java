@@ -28,7 +28,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class IssuerUriJwtDecoderConfigTest {
 
-    private static final String ISSUER = "https://dev-pvjriuvkhfjjreft.us.auth0.com/";
+    private static final String ISSUER = "https://test-issuer.example.com/";
     private static RSAPrivateKey privateKey;
     private static JwtDecoder decoder;
 
