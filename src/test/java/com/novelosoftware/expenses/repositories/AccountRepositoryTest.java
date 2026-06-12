@@ -93,12 +93,12 @@ class AccountRepositoryTest {
     @Test
     void update_persistsNewInitialAmount() {
         var updated = new AccountEntity(1L, "Checking", AccountType.DEBIT, "USD",
-            new BigDecimal("1500.00"), new BigDecimal("1700.00"), null, null, "user-1");
-        when(jdbc.query(anyString(), any(RowMapper.class), any(), any(), any(), any(), any(), eq(1L)))
+            new BigDecimal("1500.00"), new BigDecimal("1700.00"), null, null, "user-1", null);
+        when(jdbc.query(anyString(), any(RowMapper.class), any(), any(), any(), any(), any(), any(), eq(1L)))
             .thenReturn(List.of(updated));
 
         var entity = new AccountEntity(1L, "Checking", AccountType.DEBIT, "USD",
-            new BigDecimal("1500.00"), new BigDecimal("1700.00"), null, null, "user-1");
+            new BigDecimal("1500.00"), new BigDecimal("1700.00"), null, null, "user-1", null);
         Optional<AccountEntity> result = repo.update(1L, entity);
 
         assertTrue(result.isPresent());
