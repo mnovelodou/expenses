@@ -17,6 +17,7 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
@@ -62,13 +63,15 @@ public class SecurityConfig {
 
         @Bean
         public JwtDecoder jwtDecoder() {
-            return NimbusJwtDecoder.withIssuerLocation(issuerUri)
+            NimbusJwtDecoder decoder = NimbusJwtDecoder.withIssuerLocation(issuerUri)
                     .jwtProcessorCustomizer(p -> p.setJWSTypeVerifier(
                             new DefaultJOSEObjectTypeVerifier<>(
                                     new JOSEObjectType("at+jwt"),
                                     JOSEObjectType.JWT,
                                     null)))
                     .build();
+            decoder.setJwtValidator(JwtValidators.createDefaultWithIssuer(issuerUri));
+            return decoder;
         }
     }
 }
