@@ -79,9 +79,27 @@ public class AccountService {
      */
     public UpdateAccountResponse update(Long accountId, UpdateAccountRequest request) {
         validateAccountName(request.value());
-        repo.findById(accountId).orElseThrow(() -> AccountServiceExceptions.createAccountNotFoundException(accountId));
-        var entity = AccountMapper.toEntity(request);
-        
+        var existing = repo.findById(accountId)
+            .orElseThrow(() -> AccountServiceExceptions.createAccountNotFoundException(accountId));
+
+        Account requested = request.value();
+        Account resolved;
+        if (requested.initialAmount() != null) {
+            var delta = requested.initialAmount().subtract(existing.initialAmount());
+            resolved = requested.toBuilder()
+                .currentAmount(existing.currentAmount().add(delta))
+                .build();
+        } else {
+            var preservedCurrentAmount = requested.currentAmount() != null
+                ? requested.currentAmount()
+                : existing.currentAmount();
+            resolved = requested.toBuilder()
+                .initialAmount(existing.initialAmount())
+                .currentAmount(preservedCurrentAmount)
+                .build();
+        }
+
+        var entity = AccountMapper.toEntity(new UpdateAccountRequest(resolved));
         return repo.update(accountId, entity)
             .map(AccountMapper::toDto)
             .map(UpdateAccountResponse::new)

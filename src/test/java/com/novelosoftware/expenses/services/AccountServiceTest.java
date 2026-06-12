@@ -20,6 +20,7 @@ import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
@@ -123,6 +124,64 @@ class AccountServiceTest {
         var request = new com.novelosoftware.expenses.dto.UpdateAccountRequest(VALID_ACCOUNT);
 
         assertThrows(AccountNotFoundException.class, () -> service.update(99L, request));
+    }
+
+    @Test
+    void update_changedInitialAmount_adjustsCurrentAmountByDelta() {
+        var existing = new AccountEntity(1L, "Checking", AccountType.DEBIT, "USD",
+            new BigDecimal("1000.00"), new BigDecimal("1200.00"), null, null, "user-1");
+        when(repo.findById(1L)).thenReturn(Optional.of(existing));
+
+        var requestAccount = new Account(1L, "Checking", AccountType.DEBIT, "USD",
+            new BigDecimal("1500.00"), null, "user-1");
+        when(repo.update(eq(1L), any())).thenAnswer(inv -> {
+            var entity = (AccountEntity) inv.getArgument(1);
+            return Optional.of(entity);
+        });
+
+        var result = service.update(1L, new UpdateAccountRequest(requestAccount));
+
+        assertEquals(new BigDecimal("1500.00"), result.value().initialAmount());
+        // delta = 500, so currentAmount = 1200 + 500 = 1700
+        assertEquals(new BigDecimal("1700.00"), result.value().currentAmount());
+    }
+
+    @Test
+    void update_sameInitialAmount_leavesCurrentAmountUnchanged() {
+        var existing = new AccountEntity(1L, "Checking", AccountType.DEBIT, "USD",
+            new BigDecimal("1000.00"), new BigDecimal("1200.00"), null, null, "user-1");
+        when(repo.findById(1L)).thenReturn(Optional.of(existing));
+
+        var requestAccount = new Account(1L, "Checking", AccountType.DEBIT, "USD",
+            new BigDecimal("1000.00"), null, "user-1");
+        when(repo.update(eq(1L), any())).thenAnswer(inv -> {
+            var entity = (AccountEntity) inv.getArgument(1);
+            return Optional.of(entity);
+        });
+
+        var result = service.update(1L, new UpdateAccountRequest(requestAccount));
+
+        assertEquals(new BigDecimal("1000.00"), result.value().initialAmount());
+        assertEquals(new BigDecimal("1200.00"), result.value().currentAmount());
+    }
+
+    @Test
+    void update_nullInitialAmount_preservesExistingInitialAmountAndUsesClientCurrentAmount() {
+        var existing = new AccountEntity(1L, "Checking", AccountType.DEBIT, "USD",
+            new BigDecimal("1000.00"), new BigDecimal("1200.00"), null, null, "user-1");
+        when(repo.findById(1L)).thenReturn(Optional.of(existing));
+
+        var requestAccount = new Account(1L, "Checking", AccountType.DEBIT, "USD",
+            null, new BigDecimal("900.00"), "user-1");
+        when(repo.update(eq(1L), any())).thenAnswer(inv -> {
+            var entity = (AccountEntity) inv.getArgument(1);
+            return Optional.of(entity);
+        });
+
+        var result = service.update(1L, new UpdateAccountRequest(requestAccount));
+
+        assertEquals(new BigDecimal("1000.00"), result.value().initialAmount());
+        assertEquals(new BigDecimal("900.00"), result.value().currentAmount());
     }
 
     @Test

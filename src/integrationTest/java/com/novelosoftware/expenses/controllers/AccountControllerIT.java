@@ -378,6 +378,38 @@ class AccountControllerIT extends BaseIT {
             .andExpect(jsonPath("$.nextCursor").doesNotExist());
     }
 
+    @Test
+    void update_changedInitialAmount_adjustsCurrentAmountByDelta() throws Exception {
+        long id = createAccount("Savings", "user-it"); // initialAmount=1000, currentAmount=1000
+
+        mockMvc.perform(put("/accounts/{id}", id)
+                .with(fullScopeJwt())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    { "value": { "name": "Savings", "accountType": "DEBIT",
+                      "currency": "USD", "initialAmount": 1500.00, "createdBy": "user-it" } }
+                """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.value.initialAmount").value(1500.00))
+            .andExpect(jsonPath("$.value.currentAmount").value(1500.00)); // 1000 + delta(500) = 1500
+    }
+
+    @Test
+    void update_nullInitialAmount_preservesInitialAmountAndCurrentAmount() throws Exception {
+        long id = createAccount("Savings", "user-it"); // initialAmount=1000, currentAmount=1000
+
+        mockMvc.perform(put("/accounts/{id}", id)
+                .with(fullScopeJwt())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    { "value": { "name": "Savings", "accountType": "DEBIT",
+                      "currency": "USD", "createdBy": "user-it" } }
+                """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.value.initialAmount").value(1000.00))
+            .andExpect(jsonPath("$.value.currentAmount").value(1000.00));
+    }
+
     // -------------------------------------------------------------------------
     // Multi-step flows
     // -------------------------------------------------------------------------

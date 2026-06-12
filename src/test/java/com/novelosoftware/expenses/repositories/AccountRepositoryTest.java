@@ -71,7 +71,7 @@ class AccountRepositoryTest {
 
     @Test
     void update_returnsUpdatedEntity() {
-        when(jdbc.query(anyString(), any(RowMapper.class), any(), any(), any(), any(), eq(1L)))
+        when(jdbc.query(anyString(), any(RowMapper.class), any(), any(), any(), any(), any(), eq(1L)))
             .thenReturn(List.of(anEntity(1L)));
 
         Optional<AccountEntity> result = repo.update(1L, anEntity(1L));
@@ -82,12 +82,28 @@ class AccountRepositoryTest {
 
     @Test
     void update_returnsEmptyWhenNotFound() {
-        when(jdbc.query(anyString(), any(RowMapper.class), any(), any(), any(), any(), eq(99L)))
+        when(jdbc.query(anyString(), any(RowMapper.class), any(), any(), any(), any(), any(), eq(99L)))
             .thenReturn(List.of());
 
         Optional<AccountEntity> result = repo.update(99L, anEntity(null));
 
         assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void update_persistsNewInitialAmount() {
+        var updated = new AccountEntity(1L, "Checking", AccountType.DEBIT, "USD",
+            new BigDecimal("1500.00"), new BigDecimal("1700.00"), null, null, "user-1");
+        when(jdbc.query(anyString(), any(RowMapper.class), any(), any(), any(), any(), any(), eq(1L)))
+            .thenReturn(List.of(updated));
+
+        var entity = new AccountEntity(1L, "Checking", AccountType.DEBIT, "USD",
+            new BigDecimal("1500.00"), new BigDecimal("1700.00"), null, null, "user-1");
+        Optional<AccountEntity> result = repo.update(1L, entity);
+
+        assertTrue(result.isPresent());
+        assertEquals(new BigDecimal("1500.00"), result.get().initialAmount());
+        assertEquals(new BigDecimal("1700.00"), result.get().currentAmount());
     }
 
     @Test
