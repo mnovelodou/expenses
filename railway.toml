@@ -2,4 +2,4 @@
 builder = "railpack"
 
 [deploy]
-startCommand = "java -Dspring.profiles.active=production -Dserver.port=$PORT -Dspring.datasource.url=$SPRING_DATASOURCE_URL -Dspring.datasource.username=$SPRING_DATASOURCE_USERNAME -Dspring.datasource.password=$SPRING_DATASOURCE_PASSWORD -jar $(ls -1 build/libs/*.jar | grep -v plain)"
+startCommand = "java -Dspring.profiles.active=production -Dserver.port=$PORT -jar $(ls -1 build/libs/*.jar | grep -v plain)"
