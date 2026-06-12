@@ -379,7 +379,24 @@ class AccountControllerIT extends BaseIT {
     }
 
     @Test
-    void update_changedInitialAmount_adjustsCurrentAmountByDelta() throws Exception {
+    void update_newInitialAmount_persistsItIndependentlyOfCurrentAmount() throws Exception {
+        long id = createAccount("Savings", "user-it"); // initialAmount=1000, currentAmount=1000
+
+        mockMvc.perform(put("/accounts/{id}", id)
+                .with(fullScopeJwt())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    { "value": { "name": "Savings", "accountType": "DEBIT",
+                      "currency": "USD", "initialAmount": 1500.00, "currentAmount": 800.00,
+                      "createdBy": "user-it" } }
+                """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.value.initialAmount").value(1500.00))
+            .andExpect(jsonPath("$.value.currentAmount").value(800.00));
+    }
+
+    @Test
+    void update_newInitialAmountWithoutCurrentAmount_preservesStoredCurrentAmount() throws Exception {
         long id = createAccount("Savings", "user-it"); // initialAmount=1000, currentAmount=1000
 
         mockMvc.perform(put("/accounts/{id}", id)
@@ -391,11 +408,11 @@ class AccountControllerIT extends BaseIT {
                 """))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.value.initialAmount").value(1500.00))
-            .andExpect(jsonPath("$.value.currentAmount").value(1500.00)); // 1000 + delta(500) = 1500
+            .andExpect(jsonPath("$.value.currentAmount").value(1000.00));
     }
 
     @Test
-    void update_nullInitialAmount_preservesInitialAmountAndCurrentAmount() throws Exception {
+    void update_nullInitialAmount_preservesStoredInitialAmount() throws Exception {
         long id = createAccount("Savings", "user-it"); // initialAmount=1000, currentAmount=1000
 
         mockMvc.perform(put("/accounts/{id}", id)

@@ -83,21 +83,16 @@ public class AccountService {
             .orElseThrow(() -> AccountServiceExceptions.createAccountNotFoundException(accountId));
 
         Account requested = request.value();
-        Account resolved;
-        if (requested.initialAmount() != null) {
-            var delta = requested.initialAmount().subtract(existing.initialAmount());
-            resolved = requested.toBuilder()
-                .currentAmount(existing.currentAmount().add(delta))
-                .build();
-        } else {
-            var preservedCurrentAmount = requested.currentAmount() != null
-                ? requested.currentAmount()
-                : existing.currentAmount();
-            resolved = requested.toBuilder()
-                .initialAmount(existing.initialAmount())
-                .currentAmount(preservedCurrentAmount)
-                .build();
-        }
+        var resolvedInitialAmount = requested.initialAmount() != null
+            ? requested.initialAmount()
+            : existing.initialAmount();
+        var resolvedCurrentAmount = requested.currentAmount() != null
+            ? requested.currentAmount()
+            : existing.currentAmount();
+        var resolved = requested.toBuilder()
+            .initialAmount(resolvedInitialAmount)
+            .currentAmount(resolvedCurrentAmount)
+            .build();
 
         var entity = AccountMapper.toEntity(new UpdateAccountRequest(resolved));
         return repo.update(accountId, entity)
