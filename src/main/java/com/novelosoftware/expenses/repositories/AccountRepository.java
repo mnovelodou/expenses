@@ -100,13 +100,13 @@ public class AccountRepository {
     public Optional<AccountEntity> update(Long id, AccountEntity entity) {
         var sql = """
             UPDATE accounts SET name = ?, account_type = ?, currency = ?,
-            current_amount = ?, updated_at = CURRENT_TIMESTAMP
+            initial_amount = ?, current_amount = ?, updated_at = CURRENT_TIMESTAMP
             WHERE account_id = ?
             RETURNING *
             """;
         var results = jdbc.query(sql, mapper,
             entity.name(), entity.accountType().name(), entity.currency(),
-            entity.currentAmount(), id);
+            entity.initialAmount(), entity.currentAmount(), id);
         return results.stream().findFirst();
     }
 

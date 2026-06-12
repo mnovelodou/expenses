@@ -378,6 +378,55 @@ class AccountControllerIT extends BaseIT {
             .andExpect(jsonPath("$.nextCursor").doesNotExist());
     }
 
+    @Test
+    void update_newInitialAmount_persistsItIndependentlyOfCurrentAmount() throws Exception {
+        long id = createAccount("Savings", "user-it"); // initialAmount=1000, currentAmount=1000
+
+        mockMvc.perform(put("/accounts/{id}", id)
+                .with(fullScopeJwt())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    { "value": { "name": "Savings", "accountType": "DEBIT",
+                      "currency": "USD", "initialAmount": 1500.00, "currentAmount": 800.00,
+                      "createdBy": "user-it" } }
+                """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.value.initialAmount").value(1500.00))
+            .andExpect(jsonPath("$.value.currentAmount").value(800.00));
+    }
+
+    @Test
+    void update_newInitialAmountWithoutCurrentAmount_preservesStoredCurrentAmount() throws Exception {
+        long id = createAccount("Savings", "user-it"); // initialAmount=1000, currentAmount=1000
+
+        mockMvc.perform(put("/accounts/{id}", id)
+                .with(fullScopeJwt())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    { "value": { "name": "Savings", "accountType": "DEBIT",
+                      "currency": "USD", "initialAmount": 1500.00, "createdBy": "user-it" } }
+                """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.value.initialAmount").value(1500.00))
+            .andExpect(jsonPath("$.value.currentAmount").value(1000.00));
+    }
+
+    @Test
+    void update_nullInitialAmount_preservesStoredInitialAmount() throws Exception {
+        long id = createAccount("Savings", "user-it"); // initialAmount=1000, currentAmount=1000
+
+        mockMvc.perform(put("/accounts/{id}", id)
+                .with(fullScopeJwt())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    { "value": { "name": "Savings", "accountType": "DEBIT",
+                      "currency": "USD", "createdBy": "user-it" } }
+                """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.value.initialAmount").value(1000.00))
+            .andExpect(jsonPath("$.value.currentAmount").value(1000.00));
+    }
+
     // -------------------------------------------------------------------------
     // Multi-step flows
     // -------------------------------------------------------------------------
