@@ -87,7 +87,7 @@ public class AccountRepository {
             """;
         return jdbc.queryForObject(sql, mapper,
             entity.name(), entity.accountType().name(), entity.currency(),
-            entity.initialAmount(), entity.initialAmount(), entity.createdBy());
+            entity.initialAmount(), entity.currentAmount(), entity.createdBy());
     }
 
     /**
