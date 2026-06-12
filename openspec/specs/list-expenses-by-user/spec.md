@@ -4,17 +4,6 @@ Paginated listing of expenses for a given user within a date window, using forwa
 
 ## Requirements
 
-### Requirement: Authorization required for expense listing
-`GET /expenses` SHALL reject unauthenticated requests and under-scoped requests before any other validation is applied. A request without a valid Bearer token SHALL return HTTP 401. A request with a valid token lacking the `read:expenses` scope SHALL return HTTP 403.
-
-#### Scenario: No token — listing rejected with 401
-- **WHEN** `GET /expenses` is called without an Authorization header
-- **THEN** the system returns HTTP 401 without executing any expense query logic
-
-#### Scenario: Token missing read:expenses — listing rejected with 403
-- **WHEN** `GET /expenses` is called with a valid token that does not contain `read:expenses`
-- **THEN** the system returns HTTP 403 without executing any expense query logic
-
 ### Requirement: List expenses by user with date window
 The system SHALL expose a `GET /expenses` endpoint that returns a paginated list of expenses for a given user. `user_id` SHALL be a required query parameter. Once authentication is introduced, `user_id` will be inferred from the OAuth token and this parameter will be removed. `start_date` and `end_date` are both optional and independently defaulted:
 - Both absent: default to the previous calendar month (first day to last day).
