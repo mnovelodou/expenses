@@ -45,7 +45,7 @@ class AccountControllerIT extends BaseIT {
                 .content("""
                     { "value": { "name": "Imported", "accountType": "DEBIT",
                       "currency": "USD", "initialAmount": 100.00, "currentAmount": 250.00,
-                      "createdBy": "user-it" } }
+                      "createdBy": "user-it", "periodStart": "2026-06-01" } }
                 """))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.value.initialAmount").value(100.00))

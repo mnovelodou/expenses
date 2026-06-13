@@ -71,7 +71,7 @@ class AccountRepositoryTest {
 
     @Test
     void update_returnsUpdatedEntity() {
-        when(jdbc.query(anyString(), any(RowMapper.class), any(), any(), any(), any(), any(), eq(1L)))
+        when(jdbc.query(anyString(), any(RowMapper.class), any(), any(), any(), any(), any(), any(), eq(1L)))
             .thenReturn(List.of(anEntity(1L)));
 
         Optional<AccountEntity> result = repo.update(1L, anEntity(1L));
@@ -82,7 +82,7 @@ class AccountRepositoryTest {
 
     @Test
     void update_returnsEmptyWhenNotFound() {
-        when(jdbc.query(anyString(), any(RowMapper.class), any(), any(), any(), any(), any(), eq(99L)))
+        when(jdbc.query(anyString(), any(RowMapper.class), any(), any(), any(), any(), any(), any(), eq(99L)))
             .thenReturn(List.of());
 
         Optional<AccountEntity> result = repo.update(99L, anEntity(null));
