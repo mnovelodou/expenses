@@ -7,6 +7,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -34,7 +36,8 @@ public class AccountRepository {
         rs.getBigDecimal("current_amount"),
         rs.getObject("created_at", java.time.OffsetDateTime.class),
         rs.getObject("updated_at", java.time.OffsetDateTime.class),
-        rs.getString("created_by"));
+        rs.getString("created_by"),
+        rs.getObject("period_start", LocalDate.class));
 
     /**
      * Finds a single account by its ID.
@@ -81,13 +84,13 @@ public class AccountRepository {
      */
     public AccountEntity create(AccountEntity entity) {
         var sql = """
-            INSERT INTO accounts (name, account_type, currency, initial_amount, current_amount, created_by)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO accounts (name, account_type, currency, initial_amount, current_amount, created_by, period_start)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             RETURNING *
             """;
         return jdbc.queryForObject(sql, mapper,
             entity.name(), entity.accountType().name(), entity.currency(),
-            entity.initialAmount(), entity.currentAmount(), entity.createdBy());
+            entity.initialAmount(), entity.currentAmount(), entity.createdBy(), entity.periodStart());
     }
 
     /**
@@ -100,14 +103,27 @@ public class AccountRepository {
     public Optional<AccountEntity> update(Long id, AccountEntity entity) {
         var sql = """
             UPDATE accounts SET name = ?, account_type = ?, currency = ?,
-            initial_amount = ?, current_amount = ?, updated_at = CURRENT_TIMESTAMP
+            initial_amount = ?, current_amount = ?, period_start = COALESCE(?, period_start), updated_at = CURRENT_TIMESTAMP
             WHERE account_id = ?
             RETURNING *
             """;
         var results = jdbc.query(sql, mapper,
             entity.name(), entity.accountType().name(), entity.currency(),
-            entity.initialAmount(), entity.currentAmount(), id);
+            entity.initialAmount(), entity.currentAmount(), entity.periodStart(), id);
         return results.stream().findFirst();
+    }
+
+    /**
+     * Computes the total of expenses for an account on or after the given date.
+     *
+     * @param accountId   the account to aggregate
+     * @param periodStart expenses on or after this date are included
+     * @return sum of matching expenses, or zero if none exist
+     */
+    public BigDecimal sumExpensesSince(Long accountId, LocalDate periodStart) {
+        var sql = "SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE account_id = ? AND expense_date >= ?";
+        var result = jdbc.queryForObject(sql, BigDecimal.class, accountId, periodStart);
+        return result != null ? result : BigDecimal.ZERO;
     }
 
     /**

@@ -8,6 +8,7 @@ import com.novelosoftware.expenses.entities.AccountEntity;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Optional;
+import java.time.LocalDate;
 
 /**
  * Maps between AccountEntity and Account DTOs.
@@ -24,7 +25,7 @@ public final class AccountMapper {
      * @param entity the account entity from the database
      * @return the corresponding Account DTO
      */
-    public static Account toDto(AccountEntity entity) {
+    public static Account toDto(AccountEntity entity, BigDecimal gap) {
         return new Account(
             entity.accountId(),
             entity.name(),
@@ -32,7 +33,9 @@ public final class AccountMapper {
             entity.currency(),
             entity.initialAmount(),
             entity.currentAmount(),
-            entity.createdBy()
+            entity.createdBy(),
+            entity.periodStart(),
+            gap
         );
     }
 
@@ -57,7 +60,8 @@ public final class AccountMapper {
             current,
             OffsetDateTime.now(),
             OffsetDateTime.now(),
-            account.createdBy()
+            account.createdBy(),
+            account.periodStart()
         );
     }
 
@@ -89,7 +93,8 @@ public final class AccountMapper {
             account.currentAmount(),
             null,
             null,
-            account.createdBy()
+            account.createdBy(),
+            account.periodStart()
         );
     }
 }

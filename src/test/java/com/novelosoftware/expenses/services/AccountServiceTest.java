@@ -14,6 +14,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -30,30 +31,36 @@ class AccountServiceTest {
 
     private static final Account VALID_ACCOUNT = new Account(
                 null,
-                "Checking", 
-                AccountType.DEBIT, 
-                "USD", 
+                "Checking",
+                AccountType.DEBIT,
+                "USD",
                 new BigDecimal("1000.00"),
                 null,
-                "user-1");
+                "user-1",
+                LocalDate.of(2026, 6, 1),
+                null);
 
     private static final Account INVALID_ACCOUNT_BAD_NAME = new Account(
                 null,
-                "", 
-                AccountType.DEBIT, 
-                "USD", 
+                "",
+                AccountType.DEBIT,
+                "USD",
                 new BigDecimal("1000.00"),
                 null,
-                "user-1");
+                "user-1",
+                LocalDate.of(2026, 6, 1),
+                null);
 
     private static final Account INVALID_ACCOUNT_BAD_ACCOUNT_TYPE = new Account(
                 null,
-                "Checking", 
-                null, 
-                "USD", 
+                "Checking",
+                null,
+                "USD",
                 new BigDecimal("1000.00"),
                 null,
-                "user-1");
+                "user-1",
+                LocalDate.of(2026, 6, 1),
+                null);
 
     private final AccountRepository repo = mock(AccountRepository.class);
     private final AccountService service = new AccountService(repo);
@@ -129,11 +136,11 @@ class AccountServiceTest {
     @Test
     void update_newInitialAmount_persistsItWithoutAffectingCurrentAmount() {
         var existing = new AccountEntity(1L, "Checking", AccountType.DEBIT, "USD",
-            new BigDecimal("1000.00"), new BigDecimal("1200.00"), null, null, "user-1");
+            new BigDecimal("1000.00"), new BigDecimal("1200.00"), null, null, "user-1", null);
         when(repo.findById(1L)).thenReturn(Optional.of(existing));
 
         var requestAccount = new Account(1L, "Checking", AccountType.DEBIT, "USD",
-            new BigDecimal("1500.00"), new BigDecimal("800.00"), "user-1");
+            new BigDecimal("1500.00"), new BigDecimal("800.00"), "user-1", null, null);
         when(repo.update(eq(1L), any())).thenAnswer(inv -> Optional.of((AccountEntity) inv.getArgument(1)));
 
         var result = service.update(1L, new UpdateAccountRequest(requestAccount));
@@ -145,11 +152,11 @@ class AccountServiceTest {
     @Test
     void update_newInitialAmountWithoutCurrentAmount_preservesStoredCurrentAmount() {
         var existing = new AccountEntity(1L, "Checking", AccountType.DEBIT, "USD",
-            new BigDecimal("1000.00"), new BigDecimal("1200.00"), null, null, "user-1");
+            new BigDecimal("1000.00"), new BigDecimal("1200.00"), null, null, "user-1", null);
         when(repo.findById(1L)).thenReturn(Optional.of(existing));
 
         var requestAccount = new Account(1L, "Checking", AccountType.DEBIT, "USD",
-            new BigDecimal("1500.00"), null, "user-1");
+            new BigDecimal("1500.00"), null, "user-1", null, null);
         when(repo.update(eq(1L), any())).thenAnswer(inv -> Optional.of((AccountEntity) inv.getArgument(1)));
 
         var result = service.update(1L, new UpdateAccountRequest(requestAccount));
@@ -161,11 +168,11 @@ class AccountServiceTest {
     @Test
     void update_nullInitialAmount_preservesStoredInitialAmount() {
         var existing = new AccountEntity(1L, "Checking", AccountType.DEBIT, "USD",
-            new BigDecimal("1000.00"), new BigDecimal("1200.00"), null, null, "user-1");
+            new BigDecimal("1000.00"), new BigDecimal("1200.00"), null, null, "user-1", null);
         when(repo.findById(1L)).thenReturn(Optional.of(existing));
 
         var requestAccount = new Account(1L, "Checking", AccountType.DEBIT, "USD",
-            null, new BigDecimal("900.00"), "user-1");
+            null, new BigDecimal("900.00"), "user-1", null, null);
         when(repo.update(eq(1L), any())).thenAnswer(inv -> Optional.of((AccountEntity) inv.getArgument(1)));
 
         var result = service.update(1L, new UpdateAccountRequest(requestAccount));
@@ -183,6 +190,6 @@ class AccountServiceTest {
 
     private AccountEntity anEntity(Long id) {
         return new AccountEntity(id, "Checking", AccountType.DEBIT, "USD",
-            new BigDecimal("1000.00"), new BigDecimal("1000.00"), null, null, "user-1");
+            new BigDecimal("1000.00"), new BigDecimal("1000.00"), null, null, "user-1", null);
     }
 }
