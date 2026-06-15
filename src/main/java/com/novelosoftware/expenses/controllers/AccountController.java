@@ -57,9 +57,8 @@ public class AccountController {
     public PageResponse<Account> findByUser(
             @PathVariable String userId,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size,
-            @RequestParam(defaultValue = "false") boolean includeGap) {
-        return service.findByUser(userId, page, size, includeGap);
+            @RequestParam(defaultValue = "20") int size) {
+        return service.findByUser(userId, page, size);
     }
 
     /**

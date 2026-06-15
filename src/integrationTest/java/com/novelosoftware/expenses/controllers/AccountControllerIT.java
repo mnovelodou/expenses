@@ -552,15 +552,16 @@ class AccountControllerIT extends BaseIT {
     }
 
     @Test
-    void getByUser_withIncludeGap_returnsGapInEachAccount() throws Exception {
+    void getByUser_doesNotComputeGap_evenWithIncludeGapParam() throws Exception {
         createAccount("Account A", "user-gap-list");
         createAccount("Account B", "user-gap-list");
 
+        // Gap is an account-detail concern only; the finder must never expose it.
         mockMvc.perform(get("/accounts/user/{userId}", "user-gap-list")
                 .with(fullScopeJwt())
                 .param("includeGap", "true"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.content[0].gap").exists())
-            .andExpect(jsonPath("$.content[1].gap").exists());
+            .andExpect(jsonPath("$.content[0].gap").doesNotExist())
+            .andExpect(jsonPath("$.content[1].gap").doesNotExist());
     }
 }

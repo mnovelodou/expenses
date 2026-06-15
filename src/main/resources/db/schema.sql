@@ -30,3 +30,6 @@ CREATE INDEX IF NOT EXISTS idx_expenses_user_date ON expenses(created_by, expens
 
 -- Migrations
 ALTER TABLE accounts ADD COLUMN IF NOT EXISTS period_start DATE;
+
+-- Bounds the account gap aggregation (SUM of expenses for an account since period_start).
+CREATE INDEX IF NOT EXISTS idx_expenses_account_date ON expenses(account_id, expense_date);

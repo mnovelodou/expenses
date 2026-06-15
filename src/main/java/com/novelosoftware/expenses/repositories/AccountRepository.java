@@ -7,7 +7,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -103,7 +102,7 @@ public class AccountRepository {
     public Optional<AccountEntity> update(Long id, AccountEntity entity) {
         var sql = """
             UPDATE accounts SET name = ?, account_type = ?, currency = ?,
-            initial_amount = ?, current_amount = ?, period_start = COALESCE(?, period_start), updated_at = CURRENT_TIMESTAMP
+            initial_amount = ?, current_amount = ?, period_start = ?, updated_at = CURRENT_TIMESTAMP
             WHERE account_id = ?
             RETURNING *
             """;
@@ -111,19 +110,6 @@ public class AccountRepository {
             entity.name(), entity.accountType().name(), entity.currency(),
             entity.initialAmount(), entity.currentAmount(), entity.periodStart(), id);
         return results.stream().findFirst();
-    }
-
-    /**
-     * Computes the total of expenses for an account on or after the given date.
-     *
-     * @param accountId   the account to aggregate
-     * @param periodStart expenses on or after this date are included
-     * @return sum of matching expenses, or zero if none exist
-     */
-    public BigDecimal sumExpensesSince(Long accountId, LocalDate periodStart) {
-        var sql = "SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE account_id = ? AND expense_date >= ?";
-        var result = jdbc.queryForObject(sql, BigDecimal.class, accountId, periodStart);
-        return result != null ? result : BigDecimal.ZERO;
     }
 
     /**

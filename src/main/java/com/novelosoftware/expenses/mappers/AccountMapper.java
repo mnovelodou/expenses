@@ -20,9 +20,20 @@ public final class AccountMapper {
 
 
     /**
+     * Converts a persisted entity to an API-facing Account DTO without a gap value.
+     *
+     * @param entity the account entity from the database
+     * @return the corresponding Account DTO with a null gap
+     */
+    public static Account toDto(AccountEntity entity) {
+        return toDto(entity, null);
+    }
+
+    /**
      * Converts a persisted entity to an API-facing Account DTO.
      *
      * @param entity the account entity from the database
+     * @param gap    the reconciliation gap to attach, or null when not requested
      * @return the corresponding Account DTO
      */
     public static Account toDto(AccountEntity entity, BigDecimal gap) {

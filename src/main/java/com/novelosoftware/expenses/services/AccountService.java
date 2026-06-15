@@ -5,6 +5,7 @@ import com.novelosoftware.expenses.entities.AccountEntity;
 import com.novelosoftware.expenses.exceptions.AccountServiceExceptions;
 import com.novelosoftware.expenses.mappers.AccountMapper;
 import com.novelosoftware.expenses.repositories.AccountRepository;
+import com.novelosoftware.expenses.repositories.ExpenseRepository;
 
 import ch.qos.logback.core.util.StringUtil;
 
@@ -21,13 +22,15 @@ import org.springframework.stereotype.Service;
 public class AccountService {
 
     private final AccountRepository repo;
+    private final ExpenseRepository expenseRepo;
 
     /**
-     * @param repo   the repository for account persistence
-     * @param mapper the mapper for converting between entities and DTOs
+     * @param repo        the repository for account persistence
+     * @param expenseRepo the repository used to aggregate expenses for the gap calculation
      */
-    public AccountService(AccountRepository repo) {
+    public AccountService(AccountRepository repo, ExpenseRepository expenseRepo) {
         this.repo = repo;
+        this.expenseRepo = expenseRepo;
     }
 
     /**
@@ -41,7 +44,7 @@ public class AccountService {
     public Account getById(Long id, boolean includeGap) {
         var entity = repo.findById(id)
             .orElseThrow(() -> AccountServiceExceptions.createAccountNotFoundException(id));
-        return AccountMapper.toDto(entity, includeGap ? computeGap(entity) : null);
+        return includeGap ? AccountMapper.toDto(entity, computeGap(entity)) : AccountMapper.toDto(entity);
     }
 
     /**
@@ -54,26 +57,16 @@ public class AccountService {
     /**
      * Returns a paginated list of accounts belonging to a given user.
      *
-     * @param userId     the user ID to filter by
-     * @param page       zero-based page number
-     * @param size       number of items per page
-     * @param includeGap if true, computes and attaches the reconciliation gap for each account
+     * @param userId the user ID to filter by
+     * @param page   zero-based page number
+     * @param size   number of items per page
      * @return paginated response containing account DTOs and pagination metadata
      */
-    public PageResponse<Account> findByUser(String userId, int page, int size, boolean includeGap) {
+    public PageResponse<Account> findByUser(String userId, int page, int size) {
         var total = repo.countByUser(userId);
         var content = repo.findByUser(userId, size, page * size)
-            .stream()
-            .map(e -> AccountMapper.toDto(e, includeGap ? computeGap(e) : null))
-            .toList();
+            .stream().map(AccountMapper::toDto).toList();
         return PageResponse.of(content, page, size, total);
-    }
-
-    /**
-     * Returns a paginated list of accounts belonging to a given user without gap calculation.
-     */
-    public PageResponse<Account> findByUser(String userId, int page, int size) {
-        return findByUser(userId, page, size, false);
     }
 
     /**
@@ -87,7 +80,7 @@ public class AccountService {
         validateForCreate(account);
 
         var entity = AccountMapper.toEntity(request);
-        return new CreateAccountResponse(AccountMapper.toDto(repo.create(entity), null));
+        return new CreateAccountResponse(AccountMapper.toDto(repo.create(entity)));
     }
 
     /**
@@ -99,16 +92,19 @@ public class AccountService {
      * @throws AccountNotFoundException if no account exists with the given ID
      */
     public UpdateAccountResponse update(Long accountId, UpdateAccountRequest request) {
-        validateAccountName(request.value());
+        Account requested = request.value();
+        persistValidations(requested);
         var existing = repo.findById(accountId)
             .orElseThrow(() -> AccountServiceExceptions.createAccountNotFoundException(accountId));
 
+        // Fields omitted from the request preserve the stored value.
         var entity = AccountMapper.toEntity(request).toBuilder()
-            .initialAmount(request.value().initialAmount() != null ? request.value().initialAmount() : existing.initialAmount())
-            .currentAmount(request.value().currentAmount() != null ? request.value().currentAmount() : existing.currentAmount())
+            .initialAmount(requested.initialAmount() != null ? requested.initialAmount() : existing.initialAmount())
+            .currentAmount(requested.currentAmount() != null ? requested.currentAmount() : existing.currentAmount())
+            .periodStart(requested.periodStart() != null ? requested.periodStart() : existing.periodStart())
             .build();
         return repo.update(accountId, entity)
-            .map(e -> AccountMapper.toDto(e, null))
+            .map(AccountMapper::toDto)
             .map(UpdateAccountResponse::new)
             .orElseThrow(() -> AccountServiceExceptions.createAccountNotFoundException(accountId));
     }
@@ -125,7 +121,7 @@ public class AccountService {
         }
     }
 
-    public void validateAccountName(Account account) {
+    public void persistValidations(Account account) {
         if (account == null) {
             throw AccountServiceExceptions.createValidationException("Request body must include a 'value' wrapper");
         }
@@ -139,7 +135,7 @@ public class AccountService {
     }
 
     public void validateForCreate(Account account) {
-        validateAccountName(account);
+        persistValidations(account);
         if (account.periodStart() == null) {
             throw AccountServiceExceptions.createValidationException("period_start is required when creating an account");
         }
@@ -149,7 +145,7 @@ public class AccountService {
         if (entity.periodStart() == null) {
             return null;
         }
-        var expenseSum = repo.sumExpensesSince(entity.accountId(), entity.periodStart());
+        var expenseSum = expenseRepo.sumByAccountSince(entity.accountId(), entity.periodStart());
         return entity.currentAmount().subtract(entity.initialAmount()).subtract(expenseSum);
     }
 }

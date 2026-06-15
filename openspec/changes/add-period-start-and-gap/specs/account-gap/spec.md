@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
-### Requirement: Gap is opt-in via query parameter
-The system SHALL compute and return the account gap only when the request includes `?includeGap=true`. When the parameter is absent or false, the `gap` field SHALL be excluded entirely from the response and no expense aggregation query SHALL be performed.
+### Requirement: Gap is opt-in via query parameter on account detail
+The system SHALL compute and return the account gap only on the account detail endpoint `GET /accounts/{id}` and only when the request includes `?includeGap=true`. When the parameter is absent or false, the `gap` field SHALL be excluded entirely from the response and no expense aggregation query SHALL be performed. The list/finder endpoints SHALL NOT support gap calculation.
 
 #### Scenario: Request without includeGap
 - **WHEN** a GET /accounts/{id} request is made without `?includeGap=true`
@@ -25,16 +25,9 @@ The `expense_date >= period_start` boundary is inclusive — expenses on the sta
 - **WHEN** a GET /accounts/{id}?includeGap=true is requested and no expenses exist with `expense_date >= period_start`
 - **THEN** the `gap` equals `current_amount - initial_amount`
 
-### Requirement: Gap is null when period_start is not set
-When `includeGap=true` but `period_start` is null, the system SHALL return `"gap": null`.
+### Requirement: Gap is omitted when period_start is not set
+When `includeGap=true` but `period_start` is null, the gap cannot be computed and the `gap` field SHALL be omitted from the response. Going forward all accounts carry a `period_start` (required at creation), so this only affects legacy rows created before the field existed.
 
 #### Scenario: Gap requested but period_start is null
 - **WHEN** a GET /accounts/{id}?includeGap=true is requested for an account with no `period_start`
-- **THEN** the response includes `"gap": null`
-
-### Requirement: includeGap is supported on list endpoint
-The system SHALL support `?includeGap=true` on GET /accounts in addition to GET /accounts/{id}, computing the gap for each account in the result set.
-
-#### Scenario: List accounts with includeGap
-- **WHEN** a GET /accounts?includeGap=true request is made
-- **THEN** each account in the response includes a `gap` field (value or null per account)
+- **THEN** the response does not include a `gap` field
