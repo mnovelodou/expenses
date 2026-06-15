@@ -6,6 +6,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -201,5 +202,21 @@ public class ExpenseRepository {
 
     public Optional<ExpenseEntity> get(Long expenseId) {
         return jdbc.query(GET_SQL, MAPPER, expenseId).stream().findFirst();
+    }
+
+    /**
+     * Sums the amounts of all expenses for an account on or after the given date.
+     *
+     * <p>The {@code idx_expenses_account_date (account_id, expense_date)} index bounds
+     * the scan so the aggregation stays cheap as the expenses table grows.
+     *
+     * @param accountId the account whose expenses to aggregate
+     * @param since     inclusive lower bound on {@code expense_date}
+     * @return the sum of matching expense amounts, or zero if none match
+     */
+    public BigDecimal sumByAccountSince(Long accountId, LocalDate since) {
+        var sql = "SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE account_id = ? AND expense_date >= ?";
+        var result = jdbc.queryForObject(sql, BigDecimal.class, accountId, since);
+        return result != null ? result : BigDecimal.ZERO;
     }
 }

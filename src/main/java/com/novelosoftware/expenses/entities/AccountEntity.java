@@ -1,6 +1,7 @@
 package com.novelosoftware.expenses.entities;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
 import com.novelosoftware.expenses.dto.AccountType;
@@ -27,7 +28,9 @@ public record AccountEntity(
     /** Timestamp when the record was last updated. */
     OffsetDateTime updatedAt,
     /** ID of the user who owns this account. */
-    String createdBy
+    String createdBy,
+    /** Start of the current tracking period; expenses on or after this date count toward the gap. */
+    LocalDate periodStart
 ) {
     public static Builder builder() {
         return new Builder();
@@ -43,7 +46,8 @@ public record AccountEntity(
             .currentAmount(currentAmount)
             .createdAt(createdAt)
             .updatedAt(updatedAt)
-            .createdBy(createdBy);
+            .createdBy(createdBy)
+            .periodStart(periodStart);
     }
 
     public static final class Builder {
@@ -56,6 +60,7 @@ public record AccountEntity(
         private OffsetDateTime createdAt;
         private OffsetDateTime updatedAt;
         private String createdBy;
+        private LocalDate periodStart;
 
         private Builder() {}
 
@@ -68,9 +73,10 @@ public record AccountEntity(
         public Builder createdAt(OffsetDateTime createdAt) { this.createdAt = createdAt; return this; }
         public Builder updatedAt(OffsetDateTime updatedAt) { this.updatedAt = updatedAt; return this; }
         public Builder createdBy(String createdBy) { this.createdBy = createdBy; return this; }
+        public Builder periodStart(LocalDate periodStart) { this.periodStart = periodStart; return this; }
 
         public AccountEntity build() {
-            return new AccountEntity(accountId, name, accountType, currency, initialAmount, currentAmount, createdAt, updatedAt, createdBy);
+            return new AccountEntity(accountId, name, accountType, currency, initialAmount, currentAmount, createdAt, updatedAt, createdBy, periodStart);
         }
     }
 }

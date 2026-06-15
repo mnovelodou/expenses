@@ -38,8 +38,10 @@ public class AccountController {
      */
     @GetMapping("/{id}")
     @PreAuthorize("hasAuthority('SCOPE_read:accounts')")
-    public Account getById(@PathVariable Long id) {
-        return service.getById(id);
+    public Account getById(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "false") boolean includeGap) {
+        return service.getById(id, includeGap);
     }
 
     /**

@@ -106,7 +106,9 @@ public class ExpenseServiceTest {
         "USD",
         new BigDecimal("1000.00"),
         new BigDecimal("900.00"),
-        "user-1");
+        "user-1",
+        null,
+        null);
 
     private static final Expense UPDATED_EXPENSE = VALID_NEW_EXPENSE.toBuilder()
         .expenseId(EXPENSE_ID)

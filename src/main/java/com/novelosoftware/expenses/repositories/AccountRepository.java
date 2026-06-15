@@ -7,6 +7,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -34,7 +35,8 @@ public class AccountRepository {
         rs.getBigDecimal("current_amount"),
         rs.getObject("created_at", java.time.OffsetDateTime.class),
         rs.getObject("updated_at", java.time.OffsetDateTime.class),
-        rs.getString("created_by"));
+        rs.getString("created_by"),
+        rs.getObject("period_start", LocalDate.class));
 
     /**
      * Finds a single account by its ID.
@@ -81,13 +83,13 @@ public class AccountRepository {
      */
     public AccountEntity create(AccountEntity entity) {
         var sql = """
-            INSERT INTO accounts (name, account_type, currency, initial_amount, current_amount, created_by)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO accounts (name, account_type, currency, initial_amount, current_amount, created_by, period_start)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             RETURNING *
             """;
         return jdbc.queryForObject(sql, mapper,
             entity.name(), entity.accountType().name(), entity.currency(),
-            entity.initialAmount(), entity.currentAmount(), entity.createdBy());
+            entity.initialAmount(), entity.currentAmount(), entity.createdBy(), entity.periodStart());
     }
 
     /**
@@ -100,13 +102,13 @@ public class AccountRepository {
     public Optional<AccountEntity> update(Long id, AccountEntity entity) {
         var sql = """
             UPDATE accounts SET name = ?, account_type = ?, currency = ?,
-            initial_amount = ?, current_amount = ?, updated_at = CURRENT_TIMESTAMP
+            initial_amount = ?, current_amount = ?, period_start = ?, updated_at = CURRENT_TIMESTAMP
             WHERE account_id = ?
             RETURNING *
             """;
         var results = jdbc.query(sql, mapper,
             entity.name(), entity.accountType().name(), entity.currency(),
-            entity.initialAmount(), entity.currentAmount(), id);
+            entity.initialAmount(), entity.currentAmount(), entity.periodStart(), id);
         return results.stream().findFirst();
     }
 

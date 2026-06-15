@@ -60,7 +60,7 @@ class AccountRepositoryTest {
     @Test
     void create_insertsAndReturnsEntity() {
         var entity = anEntity(null);
-        when(jdbc.queryForObject(anyString(), any(RowMapper.class), any(), any(), any(), any(), any(), any()))
+        when(jdbc.queryForObject(anyString(), any(RowMapper.class), any(), any(), any(), any(), any(), any(), any()))
             .thenReturn(anEntity(1L));
 
         var result = repo.create(entity);
@@ -71,7 +71,7 @@ class AccountRepositoryTest {
 
     @Test
     void update_returnsUpdatedEntity() {
-        when(jdbc.query(anyString(), any(RowMapper.class), any(), any(), any(), any(), any(), eq(1L)))
+        when(jdbc.query(anyString(), any(RowMapper.class), any(), any(), any(), any(), any(), any(), eq(1L)))
             .thenReturn(List.of(anEntity(1L)));
 
         Optional<AccountEntity> result = repo.update(1L, anEntity(1L));
@@ -82,7 +82,7 @@ class AccountRepositoryTest {
 
     @Test
     void update_returnsEmptyWhenNotFound() {
-        when(jdbc.query(anyString(), any(RowMapper.class), any(), any(), any(), any(), any(), eq(99L)))
+        when(jdbc.query(anyString(), any(RowMapper.class), any(), any(), any(), any(), any(), any(), eq(99L)))
             .thenReturn(List.of());
 
         Optional<AccountEntity> result = repo.update(99L, anEntity(null));
@@ -93,12 +93,12 @@ class AccountRepositoryTest {
     @Test
     void update_persistsNewInitialAmount() {
         var updated = new AccountEntity(1L, "Checking", AccountType.DEBIT, "USD",
-            new BigDecimal("1500.00"), new BigDecimal("1700.00"), null, null, "user-1");
-        when(jdbc.query(anyString(), any(RowMapper.class), any(), any(), any(), any(), any(), eq(1L)))
+            new BigDecimal("1500.00"), new BigDecimal("1700.00"), null, null, "user-1", null);
+        when(jdbc.query(anyString(), any(RowMapper.class), any(), any(), any(), any(), any(), any(), eq(1L)))
             .thenReturn(List.of(updated));
 
         var entity = new AccountEntity(1L, "Checking", AccountType.DEBIT, "USD",
-            new BigDecimal("1500.00"), new BigDecimal("1700.00"), null, null, "user-1");
+            new BigDecimal("1500.00"), new BigDecimal("1700.00"), null, null, "user-1", null);
         Optional<AccountEntity> result = repo.update(1L, entity);
 
         assertTrue(result.isPresent());
@@ -122,6 +122,6 @@ class AccountRepositoryTest {
 
     private AccountEntity anEntity(Long id) {
         return new AccountEntity(id, "Checking", AccountType.DEBIT, "USD",
-            new BigDecimal("1000.00"), new BigDecimal("1000.00"), null, null, "user-1");
+            new BigDecimal("1000.00"), new BigDecimal("1000.00"), null, null, "user-1", null);
     }
 }
