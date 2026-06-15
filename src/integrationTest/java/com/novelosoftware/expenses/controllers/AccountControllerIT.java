@@ -12,6 +12,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 class AccountControllerIT extends BaseIT {
 
+    private static final String USER = "user-it";
+
     // -------------------------------------------------------------------------
     // POST /accounts
     // -------------------------------------------------------------------------
@@ -19,7 +21,7 @@ class AccountControllerIT extends BaseIT {
     @Test
     void create_happyPath_returns201WithWrappedAccount() throws Exception {
         mockMvc.perform(post("/accounts")
-                .with(fullScopeJwt())
+                .with(fullScopeJwtAs(USER))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     { "value": { "name": "Checking", "accountType": "DEBIT",
@@ -40,7 +42,7 @@ class AccountControllerIT extends BaseIT {
     @Test
     void create_withDistinctCurrentAmount_persistsBothAmountsIndependently() throws Exception {
         mockMvc.perform(post("/accounts")
-                .with(fullScopeJwt())
+                .with(fullScopeJwtAs(USER))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     { "value": { "name": "Imported", "accountType": "DEBIT",
@@ -55,7 +57,7 @@ class AccountControllerIT extends BaseIT {
     @Test
     void create_missingName_returns400() throws Exception {
         mockMvc.perform(post("/accounts")
-                .with(fullScopeJwt())
+                .with(fullScopeJwtAs(USER))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     { "value": { "name": "", "accountType": "DEBIT", "currency": "USD",
@@ -68,7 +70,7 @@ class AccountControllerIT extends BaseIT {
     @Test
     void create_missingAccountType_returns400() throws Exception {
         mockMvc.perform(post("/accounts")
-                .with(fullScopeJwt())
+                .with(fullScopeJwtAs(USER))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     { "value": { "name": "Checking", "accountType": null, "currency": "USD",
@@ -81,7 +83,7 @@ class AccountControllerIT extends BaseIT {
     @Test
     void create_invalidAccountTypeEnum_returns400WithAcceptedValues() throws Exception {
         mockMvc.perform(post("/accounts")
-                .with(fullScopeJwt())
+                .with(fullScopeJwtAs(USER))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     { "value": { "name": "Checking", "accountType": "SAVINGS", "currency": "USD",
@@ -95,7 +97,7 @@ class AccountControllerIT extends BaseIT {
     @Test
     void create_malformedJson_returns400() throws Exception {
         mockMvc.perform(post("/accounts")
-                .with(fullScopeJwt())
+                .with(fullScopeJwtAs(USER))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{ this is not valid json }"))
             .andExpect(status().isBadRequest())
@@ -106,7 +108,7 @@ class AccountControllerIT extends BaseIT {
     @Test
     void create_flatPayloadMissingValueWrapper_returns400() throws Exception {
         mockMvc.perform(post("/accounts")
-                .with(fullScopeJwt())
+                .with(fullScopeJwtAs(USER))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     { "name": "Checking", "accountType": "DEBIT", "currency": "USD",
@@ -125,7 +127,7 @@ class AccountControllerIT extends BaseIT {
         long id = createAccount("Savings", "user-it");
 
         mockMvc.perform(get("/accounts/{id}", id)
-                .with(fullScopeJwt()))
+                .with(fullScopeJwtAs(USER)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.accountId").value(id))
             .andExpect(jsonPath("$.name").value("Savings"))
@@ -135,7 +137,7 @@ class AccountControllerIT extends BaseIT {
     @Test
     void getById_notFound_returns404() throws Exception {
         mockMvc.perform(get("/accounts/{id}", 999999)
-                .with(fullScopeJwt()))
+                .with(fullScopeJwtAs(USER)))
             .andExpect(status().isNotFound())
             .andExpect(jsonPath("$.code").value("NOT_FOUND"));
     }
@@ -150,7 +152,7 @@ class AccountControllerIT extends BaseIT {
         createAccount("Account B", "user-list");
 
         mockMvc.perform(get("/accounts/user/{userId}", "user-list")
-                .with(fullScopeJwt()))
+                .with(fullScopeJwtAs("user-list")))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.totalElements").value(2))
             .andExpect(jsonPath("$.content.length()").value(2));
@@ -159,7 +161,7 @@ class AccountControllerIT extends BaseIT {
     @Test
     void getByUser_unknownUser_returnsEmptyPage() throws Exception {
         mockMvc.perform(get("/accounts/user/{userId}", "no-such-user")
-                .with(fullScopeJwt()))
+                .with(fullScopeJwtAs("no-such-user")))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.totalElements").value(0))
             .andExpect(jsonPath("$.content").isEmpty());
@@ -171,7 +173,7 @@ class AccountControllerIT extends BaseIT {
         createAccount("Account B", "user-page");
 
         mockMvc.perform(get("/accounts/user/{userId}", "user-page")
-                .with(fullScopeJwt())
+                .with(fullScopeJwtAs("user-page"))
                 .param("page", "0").param("size", "1"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.totalElements").value(2))
@@ -185,7 +187,7 @@ class AccountControllerIT extends BaseIT {
         createAccount("Account B", "user-page2");
 
         mockMvc.perform(get("/accounts/user/{userId}", "user-page2")
-                .with(fullScopeJwt())
+                .with(fullScopeJwtAs("user-page2"))
                 .param("page", "1").param("size", "1"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.content.length()").value(1));
@@ -196,7 +198,7 @@ class AccountControllerIT extends BaseIT {
         createAccount("Account A", "user-alpha");
 
         mockMvc.perform(get("/accounts/user/{userId}", "user-beta")
-                .with(fullScopeJwt()))
+                .with(fullScopeJwtAs("user-beta")))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.totalElements").value(0));
     }
@@ -210,7 +212,7 @@ class AccountControllerIT extends BaseIT {
         long id = createAccount("Original", "user-it");
 
         mockMvc.perform(put("/accounts/{id}", id)
-                .with(fullScopeJwt())
+                .with(fullScopeJwtAs(USER))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     { "value": { "name": "Updated", "accountType": "CREDIT",
@@ -227,7 +229,7 @@ class AccountControllerIT extends BaseIT {
     @Test
     void update_notFound_returns404() throws Exception {
         mockMvc.perform(put("/accounts/{id}", 999999)
-                .with(fullScopeJwt())
+                .with(fullScopeJwtAs(USER))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     { "value": { "name": "X", "accountType": "DEBIT", "currency": "USD",
@@ -242,7 +244,7 @@ class AccountControllerIT extends BaseIT {
         long id = createAccount("Original", "user-it");
 
         mockMvc.perform(put("/accounts/{id}", id)
-                .with(fullScopeJwt())
+                .with(fullScopeJwtAs(USER))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     { "value": { "name": "", "accountType": "DEBIT", "currency": "USD",
@@ -261,18 +263,18 @@ class AccountControllerIT extends BaseIT {
         long id = createAccount("To Delete", "user-it");
 
         mockMvc.perform(delete("/accounts/{id}", id)
-                .with(fullScopeJwt()))
+                .with(fullScopeJwtAs(USER)))
             .andExpect(status().isNoContent());
 
         mockMvc.perform(get("/accounts/{id}", id)
-                .with(fullScopeJwt()))
+                .with(fullScopeJwtAs(USER)))
             .andExpect(status().isNotFound());
     }
 
     @Test
     void delete_notFound_returns404() throws Exception {
         mockMvc.perform(delete("/accounts/{id}", 999999)
-                .with(fullScopeJwt()))
+                .with(fullScopeJwtAs(USER)))
             .andExpect(status().isNotFound())
             .andExpect(jsonPath("$.code").value("NOT_FOUND"));
     }
@@ -283,7 +285,7 @@ class AccountControllerIT extends BaseIT {
         createExpense(accountId, "user-it");
 
         mockMvc.perform(delete("/accounts/{id}", accountId)
-                .with(fullScopeJwt()))
+                .with(fullScopeJwtAs(USER)))
             .andExpect(status().isPreconditionFailed())
             .andExpect(jsonPath("$.code").value("PRECONDITION_FAILED"));
     }
@@ -299,7 +301,7 @@ class AccountControllerIT extends BaseIT {
         createExpenseOnDate(accountId, "user-ae", "2026-05-20");
 
         mockMvc.perform(get("/accounts/{id}/expenses", accountId)
-                .with(fullScopeJwt())
+                .with(fullScopeJwtAs("user-ae"))
                 .param("start_date", "2026-05-01")
                 .param("end_date", "2026-05-31"))
             .andExpect(status().isOk())
@@ -318,7 +320,7 @@ class AccountControllerIT extends BaseIT {
         createExpenseOnDate(accountB, "user-ae", "2026-05-20"); // should NOT appear
 
         mockMvc.perform(get("/accounts/{id}/expenses", accountA)
-                .with(fullScopeJwt())
+                .with(fullScopeJwtAs("user-ae"))
                 .param("start_date", "2026-05-01")
                 .param("end_date", "2026-05-31"))
             .andExpect(status().isOk())
@@ -332,7 +334,7 @@ class AccountControllerIT extends BaseIT {
         long accountId = createAccount("Empty Card", "user-ae");
 
         mockMvc.perform(get("/accounts/{id}/expenses", accountId)
-                .with(fullScopeJwt())
+                .with(fullScopeJwtAs("user-ae"))
                 .param("start_date", "2026-05-01")
                 .param("end_date", "2026-05-31"))
             .andExpect(status().isOk())
@@ -342,7 +344,7 @@ class AccountControllerIT extends BaseIT {
     @Test
     void listExpenses_unknownAccountId_returns404() throws Exception {
         mockMvc.perform(get("/accounts/{id}/expenses", 999999)
-                .with(fullScopeJwt())
+                .with(fullScopeJwtAs(USER))
                 .param("start_date", "2026-05-01")
                 .param("end_date", "2026-05-31"))
             .andExpect(status().isNotFound())
@@ -356,7 +358,7 @@ class AccountControllerIT extends BaseIT {
         createExpenseWithSubcategoryOnDate(accountId, "user-ae", "2026-05-15", "GROCERIES");
 
         mockMvc.perform(get("/accounts/{id}/expenses", accountId)
-                .with(fullScopeJwt())
+                .with(fullScopeJwtAs("user-ae"))
                 .param("start_date", "2026-05-01")
                 .param("end_date", "2026-05-31")
                 .param("subcategory", "GROCERIES"))
@@ -373,7 +375,7 @@ class AccountControllerIT extends BaseIT {
         createExpenseOnDate(accountId, "user-ae", "2026-05-20");
 
         String firstPageJson = mockMvc.perform(get("/accounts/{id}/expenses", accountId)
-                .with(fullScopeJwt())
+                .with(fullScopeJwtAs("user-ae"))
                 .param("start_date", "2026-05-01")
                 .param("end_date", "2026-05-31")
                 .param("limit", "2"))
@@ -385,7 +387,7 @@ class AccountControllerIT extends BaseIT {
         String nextCursor = objectMapper.readTree(firstPageJson).path("nextCursor").asText();
 
         mockMvc.perform(get("/accounts/{id}/expenses", accountId)
-                .with(fullScopeJwt())
+                .with(fullScopeJwtAs("user-ae"))
                 .param("start_date", "2026-05-01")
                 .param("end_date", "2026-05-31")
                 .param("limit", "2")
@@ -400,7 +402,7 @@ class AccountControllerIT extends BaseIT {
         long id = createAccount("Savings", "user-it"); // initialAmount=1000, currentAmount=1000
 
         mockMvc.perform(put("/accounts/{id}", id)
-                .with(fullScopeJwt())
+                .with(fullScopeJwtAs(USER))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     { "value": { "name": "Savings", "accountType": "DEBIT",
@@ -417,7 +419,7 @@ class AccountControllerIT extends BaseIT {
         long id = createAccount("Savings", "user-it"); // initialAmount=1000, currentAmount=1000
 
         mockMvc.perform(put("/accounts/{id}", id)
-                .with(fullScopeJwt())
+                .with(fullScopeJwtAs(USER))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     { "value": { "name": "Savings", "accountType": "DEBIT",
@@ -433,7 +435,7 @@ class AccountControllerIT extends BaseIT {
         long id = createAccount("Savings", "user-it"); // initialAmount=1000, currentAmount=1000
 
         mockMvc.perform(put("/accounts/{id}", id)
-                .with(fullScopeJwt())
+                .with(fullScopeJwtAs(USER))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     { "value": { "name": "Savings", "accountType": "DEBIT",
@@ -453,7 +455,7 @@ class AccountControllerIT extends BaseIT {
         long id = createAccount("Round Trip", "user-it");
 
         mockMvc.perform(get("/accounts/{id}", id)
-                .with(fullScopeJwt()))
+                .with(fullScopeJwtAs(USER)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.accountId").value(id))
             .andExpect(jsonPath("$.name").value("Round Trip"))
@@ -466,7 +468,7 @@ class AccountControllerIT extends BaseIT {
         long id = createAccount("Original", "user-it");
 
         mockMvc.perform(put("/accounts/{id}", id)
-                .with(fullScopeJwt())
+                .with(fullScopeJwtAs(USER))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     { "value": { "name": "Updated", "accountType": "DEBIT",
@@ -475,7 +477,7 @@ class AccountControllerIT extends BaseIT {
             .andExpect(status().isOk());
 
         mockMvc.perform(get("/accounts/{id}", id)
-                .with(fullScopeJwt()))
+                .with(fullScopeJwtAs(USER)))
             .andExpect(jsonPath("$.currentAmount").value(500.00))
             .andExpect(jsonPath("$.initialAmount").value(1000.00));
     }
@@ -487,7 +489,7 @@ class AccountControllerIT extends BaseIT {
     @Test
     void create_missingPeriodStart_returns400() throws Exception {
         mockMvc.perform(post("/accounts")
-                .with(fullScopeJwt())
+                .with(fullScopeJwtAs(USER))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     { "value": { "name": "Checking", "accountType": "DEBIT",
@@ -502,7 +504,7 @@ class AccountControllerIT extends BaseIT {
         long id = createAccount("Period Card", "user-it"); // seeded with periodStart = DEFAULT_PERIOD_START
 
         mockMvc.perform(put("/accounts/{id}", id)
-                .with(fullScopeJwt())
+                .with(fullScopeJwtAs(USER))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     { "value": { "name": "Period Card", "accountType": "DEBIT",
@@ -511,7 +513,7 @@ class AccountControllerIT extends BaseIT {
             .andExpect(status().isOk());
 
         mockMvc.perform(get("/accounts/{id}", id)
-                .with(fullScopeJwt()))
+                .with(fullScopeJwtAs(USER)))
             .andExpect(jsonPath("$.periodStart").value(DEFAULT_PERIOD_START));
     }
 
@@ -521,7 +523,7 @@ class AccountControllerIT extends BaseIT {
         createExpenseOnDate(id, "user-it", "2026-06-10");
 
         mockMvc.perform(get("/accounts/{id}", id)
-                .with(fullScopeJwt())
+                .with(fullScopeJwtAs(USER))
                 .param("includeGap", "true"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.gap").exists());
@@ -532,7 +534,7 @@ class AccountControllerIT extends BaseIT {
         long id = createAccount("No Gap Card", "user-it");
 
         mockMvc.perform(get("/accounts/{id}", id)
-                .with(fullScopeJwt()))
+                .with(fullScopeJwtAs(USER)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.gap").doesNotExist());
     }
@@ -545,7 +547,7 @@ class AccountControllerIT extends BaseIT {
 
         // gap = currentAmount(1000) - initialAmount(1000) - expenses(85.00) = -85.00
         mockMvc.perform(get("/accounts/{id}", id)
-                .with(fullScopeJwt())
+                .with(fullScopeJwtAs(USER))
                 .param("includeGap", "true"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.gap").value(-85.00));
@@ -558,7 +560,7 @@ class AccountControllerIT extends BaseIT {
 
         // Gap is an account-detail concern only; the finder must never expose it.
         mockMvc.perform(get("/accounts/user/{userId}", "user-gap-list")
-                .with(fullScopeJwt())
+                .with(fullScopeJwtAs("user-gap-list"))
                 .param("includeGap", "true"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.content[0].gap").doesNotExist())

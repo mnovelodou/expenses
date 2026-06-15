@@ -49,9 +49,31 @@ public class AccountService {
 
     /**
      * Returns a single account by ID without gap calculation.
+     *
+     * <p>Internal, non-ownership-checked accessor for service-to-service use. Caller-facing
+     * paths must use {@link #getById(Long, boolean, String)}.
      */
     public Account getById(Long id) {
         return getById(id, false);
+    }
+
+    /**
+     * Returns a single account by ID, verifying the caller owns it.
+     *
+     * @param id         the account ID
+     * @param includeGap if true, computes and attaches the reconciliation gap
+     * @param callerSub  the authenticated caller's subject
+     * @return the account DTO
+     * @throws AccountNotFoundException if no account exists or the caller does not own it
+     */
+    public Account getById(Long id, boolean includeGap, String callerSub) {
+        var entity = repo.findById(id)
+            .orElseThrow(() -> AccountServiceExceptions.createAccountNotFoundException(id));
+        if (!callerSub.equals(entity.createdBy())) {
+            // Hide existence of accounts the caller does not own.
+            throw AccountServiceExceptions.createAccountNotFoundException(id);
+        }
+        return includeGap ? AccountMapper.toDto(entity, computeAccountGap(entity)) : AccountMapper.toDto(entity);
     }
 
     /**
@@ -62,7 +84,14 @@ public class AccountService {
      * @param size   number of items per page
      * @return paginated response containing account DTOs and pagination metadata
      */
-    public PageResponse<Account> findByUser(String userId, int page, int size) {
+    public PageResponse<Account> findByUser(String callerSub, String userId, int page, int size) {
+        // The requested user is optional and defaults to the caller. When supplied it must
+        // match the caller; a mismatch is hidden as a 404 (ADMIN cross-user access is deferred).
+        String requestedUser = (userId == null || userId.isBlank()) ? callerSub : userId;
+        if (!requestedUser.equals(callerSub)) {
+            throw AccountServiceExceptions.createAccountNotFoundException("No accounts found for the requested user");
+        }
+        userId = requestedUser;
         var total = repo.countByUser(userId);
         var content = repo.findByUser(userId, size, page * size)
             .stream().map(AccountMapper::toDto).toList();
@@ -75,9 +104,10 @@ public class AccountService {
      * @param request the create request
      * @return response wrapping the created account
      */
-    public CreateAccountResponse create(CreateAccountRequest request) {
+    public CreateAccountResponse create(CreateAccountRequest request, String callerSub) {
         Account account = request.value();
         validateForCreate(account);
+        requireOwnership(account, callerSub);
 
         var entity = AccountMapper.toEntity(request);
         return new CreateAccountResponse(AccountMapper.toDto(repo.create(entity)));
@@ -91,11 +121,16 @@ public class AccountService {
      * @return response wrapping the updated account
      * @throws AccountNotFoundException if no account exists with the given ID
      */
-    public UpdateAccountResponse update(Long accountId, UpdateAccountRequest request) {
+    public UpdateAccountResponse update(Long accountId, UpdateAccountRequest request, String callerSub) {
         Account requested = request.value();
         persistValidations(requested);
+        requireOwnership(requested, callerSub);
         var existing = repo.findById(accountId)
             .orElseThrow(() -> AccountServiceExceptions.createAccountNotFoundException(accountId));
+        if (!callerSub.equals(existing.createdBy())) {
+            // Hide existence of accounts the caller does not own.
+            throw AccountServiceExceptions.createAccountNotFoundException(accountId);
+        }
 
         // Fields omitted from the request preserve the stored value.
         var entity = AccountMapper.toEntity(request).toBuilder()
@@ -115,9 +150,26 @@ public class AccountService {
      * @param accountId the ID of the account to delete
      * @throws AccountNotFoundException if no account exists with the given ID
      */
-    public void delete(Long accountId) {
+    public void delete(Long accountId, String callerSub) {
+        // Fetch first so ownership can be verified before deleting.
+        var existing = repo.findById(accountId)
+            .orElseThrow(() -> AccountServiceExceptions.createAccountNotFoundException(accountId));
+        if (!callerSub.equals(existing.createdBy())) {
+            throw AccountServiceExceptions.createAccountNotFoundException(accountId);
+        }
         if (!repo.delete(accountId)) {
             throw AccountServiceExceptions.createAccountNotFoundException(accountId);
+        }
+    }
+
+    /**
+     * Ensures the account's {@code createdBy} matches the caller, preventing a caller
+     * from creating or reassigning a resource on behalf of another user.
+     */
+    private void requireOwnership(Account account, String callerSub) {
+        if (account.createdBy() == null || !callerSub.equals(account.createdBy())) {
+            throw AccountServiceExceptions.createUnauthorizedAccountException(
+                "Cannot write accounts on behalf of another user");
         }
     }
 

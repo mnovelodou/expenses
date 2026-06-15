@@ -22,6 +22,7 @@ import com.novelosoftware.expenses.dto.CursorPageResponse;
 import com.novelosoftware.expenses.dto.Expense;
 import com.novelosoftware.expenses.dto.UpdateExpenseRequest;
 import com.novelosoftware.expenses.dto.UpdateExpenseResponse;
+import com.novelosoftware.expenses.security.CurrentUser;
 import com.novelosoftware.expenses.services.ExpenseService;
 
 import java.time.LocalDate;
@@ -69,7 +70,8 @@ public class ExpenseController {
             @RequestParam(value = "subcategory", required = false) String subcategory,
             @RequestParam(value = "account_id", required = false) Long accountId) {
 
-        return expenseService.listByUser(userId, startDate, endDate, limit, cursor, category, subcategory, accountId);
+        String callerSub = CurrentUser.requireSubject();
+        return expenseService.listByUser(callerSub, userId, startDate, endDate, limit, cursor, category, subcategory, accountId);
     }
 
     /**
@@ -81,32 +83,32 @@ public class ExpenseController {
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAuthority('SCOPE_write:expenses')")
     public CreateExpenseResponse create(@RequestBody CreateExpenseRequest request) {
-        return expenseService.create(request);
+        return expenseService.create(request, CurrentUser.requireSubject());
     }
 
     @PostMapping("/bulk")
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAuthority('SCOPE_write:expenses')")
     public BulkCreateExpensesResponse bulkCreate(@RequestBody BulkCreateExpensesRequest request) {
-        return new BulkCreateExpensesResponse(expenseService.bulkCreate(request));
+        return new BulkCreateExpensesResponse(expenseService.bulkCreate(request, CurrentUser.requireSubject()));
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAuthority('SCOPE_read:expenses')")
     public Expense getById(@PathVariable Long id) {
-        return expenseService.getById(id);
+        return expenseService.getById(id, CurrentUser.requireSubject());
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @PreAuthorize("hasAuthority('SCOPE_write:expenses')")
     public void delete(@PathVariable Long id) {
-        expenseService.delete(id);
+        expenseService.delete(id, CurrentUser.requireSubject());
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('SCOPE_write:expenses')")
     public UpdateExpenseResponse update(@PathVariable Long id, @RequestBody UpdateExpenseRequest request) {
-        return expenseService.update(id, request);
+        return expenseService.update(id, request, CurrentUser.requireSubject());
     }
 }

@@ -57,20 +57,38 @@ public abstract class BaseIT {
     @Autowired
     protected ObjectMapper objectMapper;
 
+    /** Subject used by {@link #jwt(String...)} and {@link #fullScopeJwt()} when none is given. */
+    protected static final String DEFAULT_SUBJECT = "test-user";
+
     protected RequestPostProcessor jwt(String... scopes) {
+        return jwtAs(DEFAULT_SUBJECT, scopes);
+    }
+
+    /**
+     * Builds a JWT post-processor whose {@code sub} claim is {@code subject}. Ownership
+     * checks compare a resource's {@code createdBy} against this subject, so tests must
+     * seed data with a matching {@code createdBy}.
+     */
+    protected RequestPostProcessor jwtAs(String subject, String... scopes) {
         GrantedAuthority[] authorities = Arrays.stream(scopes)
                 .map(s -> (GrantedAuthority) new SimpleGrantedAuthority("SCOPE_" + s))
                 .toArray(GrantedAuthority[]::new);
-        return SecurityMockMvcRequestPostProcessors.jwt().authorities(authorities);
+        return SecurityMockMvcRequestPostProcessors.jwt()
+                .jwt(builder -> builder.subject(subject))
+                .authorities(authorities);
     }
 
     protected RequestPostProcessor fullScopeJwt() {
-        return jwt("read:expenses", "write:expenses", "read:accounts", "write:accounts");
+        return fullScopeJwtAs(DEFAULT_SUBJECT);
+    }
+
+    protected RequestPostProcessor fullScopeJwtAs(String subject) {
+        return jwtAs(subject, "read:expenses", "write:expenses", "read:accounts", "write:accounts");
     }
 
     protected long createAccount(String name, String userId) throws Exception {
         String response = mockMvc.perform(post("/accounts")
-                .with(fullScopeJwt())
+                .with(fullScopeJwtAs(userId))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     { "value": { "name": "%s", "accountType": "DEBIT", "currency": "USD",
@@ -92,7 +110,7 @@ public abstract class BaseIT {
     protected long createExpenseWithSubcategoryOnDate(long accountId, String userId, String date,
                                                        String subCategory) throws Exception {
         String response = mockMvc.perform(post("/expenses")
-                .with(fullScopeJwt())
+                .with(fullScopeJwtAs(userId))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     { "value": { "expenseDate": "%s", "accountId": %d, "amount": 42.50,

@@ -59,6 +59,9 @@ public class ExpenseServiceTest {
 
     private static final Long EXPENSE_ID = 31416L;
 
+    /** Owner of the test fixtures; also the authenticated caller in most cases. */
+    private static final String CALLER = "user-1";
+
     private static final Long ACCOUNT_ID = 543412L;
 
     private static final Expense VALID_NEW_EXPENSE = new Expense(
@@ -144,7 +147,7 @@ public class ExpenseServiceTest {
     @Test
     void getById_found_returnsMappedDto() {
         when(repo.get(EXPENSE_ID)).thenReturn(Optional.of(CREATED_ENTITY));
-        Expense result = service.getById(EXPENSE_ID);
+        Expense result = service.getById(EXPENSE_ID, CALLER);
         assertEquals(CREATED_DTO, result);
         verify(repo).get(EXPENSE_ID);
     }
@@ -152,7 +155,7 @@ public class ExpenseServiceTest {
     @Test
     void getById_notFound_throwsExpenseNotFoundException() {
         when(repo.get(EXPENSE_ID)).thenReturn(Optional.empty());
-        assertThrows(ExpenseNotFoundException.class, () -> service.getById(EXPENSE_ID));
+        assertThrows(ExpenseNotFoundException.class, () -> service.getById(EXPENSE_ID, CALLER));
     }
 
     // -------------------------------------------------------------------------
@@ -161,15 +164,43 @@ public class ExpenseServiceTest {
 
     @Test
     void delete_success_doesNotThrow() {
+        when(repo.get(EXPENSE_ID)).thenReturn(Optional.of(CREATED_ENTITY));
         when(repo.delete(EXPENSE_ID)).thenReturn(true);
-        service.delete(EXPENSE_ID);
+        service.delete(EXPENSE_ID, CALLER);
         verify(repo).delete(EXPENSE_ID);
     }
 
     @Test
     void delete_notFound_throwsExpenseNotFoundException() {
-        when(repo.delete(EXPENSE_ID)).thenReturn(false);
-        assertThrows(ExpenseNotFoundException.class, () -> service.delete(EXPENSE_ID));
+        when(repo.get(EXPENSE_ID)).thenReturn(Optional.empty());
+        assertThrows(ExpenseNotFoundException.class, () -> service.delete(EXPENSE_ID, CALLER));
+    }
+
+    @Test
+    void delete_notOwned_throwsExpenseNotFoundException() {
+        ExpenseEntity otherUsers = CREATED_ENTITY.toBuilder().createdBy("user-2").build();
+        when(repo.get(EXPENSE_ID)).thenReturn(Optional.of(otherUsers));
+        assertThrows(ExpenseNotFoundException.class, () -> service.delete(EXPENSE_ID, CALLER));
+    }
+
+    @Test
+    void getById_notOwned_throwsExpenseNotFoundException() {
+        ExpenseEntity otherUsers = CREATED_ENTITY.toBuilder().createdBy("user-2").build();
+        when(repo.get(EXPENSE_ID)).thenReturn(Optional.of(otherUsers));
+        assertThrows(ExpenseNotFoundException.class, () -> service.getById(EXPENSE_ID, CALLER));
+    }
+
+    @Test
+    void create_impersonatingAnotherUser_throwsUnauthorized() {
+        CreateExpenseRequest request = new CreateExpenseRequest(VALID_NEW_EXPENSE);
+        // VALID_NEW_EXPENSE.createdBy is "user-1"; caller is someone else.
+        assertThrows(UnauthorizedExpenseException.class, () -> service.create(request, "intruder"));
+    }
+
+    @Test
+    void listByUser_requestedUserNotCaller_throwsExpenseNotFoundException() {
+        assertThrows(ExpenseNotFoundException.class,
+            () -> service.listByUser(CALLER, "someone-else", null, null, null, null, null, null, null));
     }
 
     @Test
@@ -177,7 +208,7 @@ public class ExpenseServiceTest {
         CreateExpenseRequest request = new CreateExpenseRequest(VALID_NEW_EXPENSE);
         when(accountService.getById(VALID_NEW_EXPENSE.accountId())).thenReturn(VALID_ACCOUNT);
         when(repo.create(MAPPEED_ENTITY)).thenReturn(CREATED_ENTITY);
-        CreateExpenseResponse actualReponse = service.create(request);
+        CreateExpenseResponse actualReponse = service.create(request, CALLER);
         assertEquals(actualReponse.value(), CREATED_DTO);
     }
 
@@ -188,7 +219,7 @@ public class ExpenseServiceTest {
             .createdBy("user-2")
             .build());
 
-        assertThrows(UnauthorizedExpenseException.class, () -> service.create(request));
+        assertThrows(UnauthorizedExpenseException.class, () -> service.create(request, CALLER));
     }
 
     @Test
@@ -205,7 +236,7 @@ public class ExpenseServiceTest {
         when(repo.get(anyLong())).thenReturn(Optional.of(existingExpense));
         when(repo.update(anyLong(), any(ExpenseEntity.class))).thenReturn(Optional.of(updatedExpenseEntity));
 
-        UpdateExpenseResponse actual = service.update(EXPENSE_ID, new UpdateExpenseRequest(UPDATED_EXPENSE));
+        UpdateExpenseResponse actual = service.update(EXPENSE_ID, new UpdateExpenseRequest(UPDATED_EXPENSE), CALLER);
 
         assertEquals(UPDATED_EXPENSE, actual.value());
         verify(accountService).getById(ACCOUNT_ID);
@@ -219,12 +250,11 @@ public class ExpenseServiceTest {
             .createdBy("user-2")
             .build());
 
-        assertThrows(UnauthorizedExpenseException.class, () -> service.update(
-            EXPENSE_ID, new UpdateExpenseRequest(UPDATED_EXPENSE)));
+        assertThrows(UnauthorizedExpenseException.class, () -> service.update(EXPENSE_ID, new UpdateExpenseRequest(UPDATED_EXPENSE), CALLER));
     }
 
     @Test
-    void update_unauthorizedExpense() {
+    void update_notOwned_throwsExpenseNotFoundException() {
         ExpenseEntity existingExpense = MAPPEED_ENTITY.toBuilder()
             .expenseId(EXPENSE_ID)
             .createdBy("user-2")
@@ -233,24 +263,31 @@ public class ExpenseServiceTest {
         when(accountService.getById(anyLong())).thenReturn(VALID_ACCOUNT);
         when(repo.get(anyLong())).thenReturn(Optional.of(existingExpense));
 
-       assertThrows(UnauthorizedExpenseException.class, () -> service.update(EXPENSE_ID, new UpdateExpenseRequest(UPDATED_EXPENSE)));
+       assertThrows(ExpenseNotFoundException.class, () -> service.update(EXPENSE_ID, new UpdateExpenseRequest(UPDATED_EXPENSE), CALLER));
 
         verify(accountService).getById(ACCOUNT_ID);
         verify(repo).get(EXPENSE_ID);
+    }
+
+    @Test
+    void update_impersonatingAnotherUser_throwsUnauthorized() {
+        // body.createdBy is "user-1"; caller is someone else.
+        assertThrows(UnauthorizedExpenseException.class,
+            () -> service.update(EXPENSE_ID, new UpdateExpenseRequest(UPDATED_EXPENSE), "intruder"));
     }
 
     @ParameterizedTest(name = "create_testInvalidInputs-{0}")
     @MethodSource("invalidExpenses")
     void create_testInvalidInputs(String testName, Expense expense) {
         CreateExpenseRequest request = new CreateExpenseRequest(expense);
-        assertThrows(ExpenseValidationException.class, () -> service.create(request));
+        assertThrows(ExpenseValidationException.class, () -> service.create(request, CALLER));
     }
 
     @ParameterizedTest(name = "update_testInvalidInputs-{0}")
     @MethodSource("invalidExpenses")
     void update_testInvalidInputs(String testName, Expense expense) {
         UpdateExpenseRequest updateExpenseRequest = new UpdateExpenseRequest(expense);
-        assertThrows(ExpenseValidationException.class, () -> service.update(EXPENSE_ID, updateExpenseRequest));
+        assertThrows(ExpenseValidationException.class, () -> service.update(EXPENSE_ID, updateExpenseRequest, CALLER));
     }
 
     static Stream<Arguments> invalidExpenses() {
@@ -348,7 +385,7 @@ public class ExpenseServiceTest {
             isNull(), isNull(), isNull(), eq(20), isNull()))
             .thenReturn(List.of());
 
-        CursorPageResponse<Expense> result = service.listByUser("user-1", null, null, null, null, null, null, null);
+        CursorPageResponse<Expense> result = service.listByUser(CALLER, "user-1", null, null, null, null, null, null, null);
 
         assertNotNull(result);
         assertNull(result.nextCursor());
@@ -363,7 +400,7 @@ public class ExpenseServiceTest {
             isNull(), isNull(), isNull(), anyInt(), isNull()))
             .thenReturn(List.of());
 
-        service.listByUser("user-1", start, null, null, null, null, null, null);
+        service.listByUser(CALLER, "user-1", start, null, null, null, null, null, null);
     }
 
     @Test
@@ -375,7 +412,7 @@ public class ExpenseServiceTest {
             isNull(), isNull(), isNull(), anyInt(), isNull()))
             .thenReturn(List.of());
 
-        service.listByUser("user-1", null, end, null, null, null, null, null);
+        service.listByUser(CALLER, "user-1", null, end, null, null, null, null, null);
     }
 
     // -------------------------------------------------------------------------
@@ -386,7 +423,7 @@ public class ExpenseServiceTest {
     @ValueSource(ints = {-5, -1, 0, 101, 200})
     void listByUser_invalidLimit_throws400(int limit) {
         assertThrows(ExpenseValidationException.class,
-            () -> service.listByUser("user-1", null, null, limit, null, null, null, null));
+            () -> service.listByUser(CALLER, "user-1", null, null, limit, null, null, null, null));
     }
 
     @Test
@@ -395,7 +432,7 @@ public class ExpenseServiceTest {
             isNull(), isNull(), isNull(), eq(100), isNull()))
             .thenReturn(List.of());
 
-        service.listByUser("user-1", null, null, 100, null, null, null, null);
+        service.listByUser(CALLER, "user-1", null, null, 100, null, null, null, null);
     }
 
     @Test
@@ -404,7 +441,7 @@ public class ExpenseServiceTest {
             isNull(), isNull(), isNull(), eq(20), isNull()))
             .thenReturn(List.of());
 
-        service.listByUser("user-1", null, null, null, null, null, null, null);
+        service.listByUser(CALLER, "user-1", null, null, null, null, null, null, null);
     }
 
     // -------------------------------------------------------------------------
@@ -418,7 +455,7 @@ public class ExpenseServiceTest {
         String cursor = ExpenseCursor.encode(LocalDate.of(2026, 3, 1), 10L);
 
         assertThrows(InvalidCursorException.class,
-            () -> service.listByUser("user-1", start, end, null, cursor, null, null, null));
+            () -> service.listByUser(CALLER, "user-1", start, end, null, cursor, null, null, null));
     }
 
     // -------------------------------------------------------------------------
@@ -428,7 +465,7 @@ public class ExpenseServiceTest {
     @Test
     void listByUser_categoryAndSubcategoryBothProvided_throws400() {
         assertThrows(ExpenseValidationException.class,
-            () -> service.listByUser("user-1", null, null, null, null, "Food", "Groceries", null));
+            () -> service.listByUser(CALLER, "user-1", null, null, null, null, "Food", "Groceries", null));
     }
 
     // -------------------------------------------------------------------------
@@ -441,7 +478,7 @@ public class ExpenseServiceTest {
             eq("Food"), isNull(), isNull(), anyInt(), isNull()))
             .thenReturn(List.of());
 
-        service.listByUser("user-1", null, null, null, null, "Food", null, null);
+        service.listByUser(CALLER, "user-1", null, null, null, null, "Food", null, null);
 
         verify(repo).findByFiltersCursor(eq("user-1"), any(), any(),
             eq("Food"), isNull(), isNull(), anyInt(), isNull());
@@ -453,7 +490,7 @@ public class ExpenseServiceTest {
             isNull(), eq("Groceries"), isNull(), anyInt(), isNull()))
             .thenReturn(List.of());
 
-        service.listByUser("user-1", null, null, null, null, null, "Groceries", null);
+        service.listByUser(CALLER, "user-1", null, null, null, null, null, "Groceries", null);
 
         verify(repo).findByFiltersCursor(eq("user-1"), any(), any(),
             isNull(), eq("Groceries"), isNull(), anyInt(), isNull());
@@ -465,7 +502,7 @@ public class ExpenseServiceTest {
             isNull(), isNull(), eq(3L), anyInt(), isNull()))
             .thenReturn(List.of());
 
-        service.listByUser("user-1", null, null, null, null, null, null, 3L);
+        service.listByUser(CALLER, "user-1", null, null, null, null, null, null, 3L);
 
         verify(repo).findByFiltersCursor(eq("user-1"), any(), any(),
             isNull(), isNull(), eq(3L), anyInt(), isNull());
@@ -488,7 +525,7 @@ public class ExpenseServiceTest {
             isNull(), isNull(), isNull(), eq(2), isNull()))
             .thenReturn(entities);
 
-        CursorPageResponse<Expense> result = service.listByUser("user-1", start, end, 2, null, null, null, null);
+        CursorPageResponse<Expense> result = service.listByUser(CALLER, "user-1", start, end, 2, null, null, null, null);
 
         assertNotNull(result.nextCursor());
     }
@@ -502,7 +539,7 @@ public class ExpenseServiceTest {
             isNull(), isNull(), isNull(), eq(20), isNull()))
             .thenReturn(List.of(anEntity(5L, LocalDate.of(2026, 4, 10))));
 
-        CursorPageResponse<Expense> result = service.listByUser("user-1", start, end, null, null, null, null, null);
+        CursorPageResponse<Expense> result = service.listByUser(CALLER, "user-1", start, end, null, null, null, null, null);
 
         assertNull(result.nextCursor());
     }
@@ -520,7 +557,7 @@ public class ExpenseServiceTest {
         when(accountService.getById(VALID_NEW_EXPENSE.accountId())).thenReturn(VALID_ACCOUNT);
         when(repo.bulkInsert(List.of(MAPPEED_ENTITY, MAPPEED_ENTITY))).thenReturn(inserted);
 
-        List<CreateExpenseResponse> responses = service.bulkCreate(bulkRequest);
+        List<CreateExpenseResponse> responses = service.bulkCreate(bulkRequest, CALLER);
 
         assertEquals(2, responses.size());
         assertEquals(CREATED_DTO, responses.get(0).value());
@@ -535,24 +572,24 @@ public class ExpenseServiceTest {
             .build());
 
         assertThrows(UnauthorizedExpenseException.class,
-            () -> service.bulkCreate(new BulkCreateExpensesRequest(List.of(request))));
+            () -> service.bulkCreate(new BulkCreateExpensesRequest(List.of(request)), CALLER));
     }
 
     @Test
     void bulkCreate_nullPayload_throwsValidationException() {
         assertThrows(ExpenseValidationException.class,
-            () -> service.bulkCreate(new BulkCreateExpensesRequest(List.of(new CreateExpenseRequest(null)))));
+            () -> service.bulkCreate(new BulkCreateExpensesRequest(List.of(new CreateExpenseRequest(null))), CALLER));
     }
 
     @Test
     void bulkCreate_nullRequest_throwsValidationException() {
-        assertThrows(ExpenseValidationException.class, () -> service.bulkCreate(null));
+        assertThrows(ExpenseValidationException.class, () -> service.bulkCreate(null, CALLER));
     }
 
     @Test
     void bulkCreate_emptyList_throwsValidationException() {
         assertThrows(ExpenseValidationException.class,
-            () -> service.bulkCreate(new BulkCreateExpensesRequest(List.of())));
+            () -> service.bulkCreate(new BulkCreateExpensesRequest(List.of()), CALLER));
     }
 
     // -------------------------------------------------------------------------

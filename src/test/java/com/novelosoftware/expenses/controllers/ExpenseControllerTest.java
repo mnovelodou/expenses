@@ -2,6 +2,7 @@ package com.novelosoftware.expenses.controllers;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
@@ -17,6 +18,8 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Stream;
 
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -83,13 +86,35 @@ public class ExpenseControllerTest {
     @MockitoBean
     private ExpenseService expenseService;
 
+    /** Subject of the authenticated caller in these tests; matches fixtures' createdBy. */
+    private static final String CALLER = "user-1";
+
+    @BeforeEach
+    void authenticate() {
+        // addFilters=false skips the security filter chain, so populate the context directly.
+        // MockMvc runs synchronously on this thread, so the controller sees this authentication.
+        org.springframework.security.oauth2.jwt.Jwt jwt =
+            org.springframework.security.oauth2.jwt.Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .subject(CALLER)
+                .claim("scope", "read:expenses write:expenses")
+                .build();
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+            new org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken(jwt));
+    }
+
+    @AfterEach
+    void clearAuthentication() {
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+    }
+
     // -------------------------------------------------------------------------
     // GET /expenses/{id}
     // -------------------------------------------------------------------------
 
     @Test
     void getById_found_returns200() throws Exception {
-        when(expenseService.getById(1L)).thenReturn(anExpense(1L));
+        when(expenseService.getById(eq(1L), anyString())).thenReturn(anExpense(1L));
         mockMvc.perform(get("/expenses/1"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.expenseId").value(1))
@@ -98,7 +123,7 @@ public class ExpenseControllerTest {
 
     @Test
     void getById_notFound_returns404() throws Exception {
-        when(expenseService.getById(999L))
+        when(expenseService.getById(eq(999L), anyString()))
             .thenThrow(ExpenseServiceExceptions.createExpenseNotFoundException(999L));
         mockMvc.perform(get("/expenses/999"))
             .andExpect(status().isNotFound())
@@ -111,7 +136,7 @@ public class ExpenseControllerTest {
 
     @Test
     void delete_success_returns204() throws Exception {
-        doNothing().when(expenseService).delete(1L);
+        doNothing().when(expenseService).delete(eq(1L), anyString());
         mockMvc.perform(delete("/expenses/1"))
             .andExpect(status().isNoContent());
     }
@@ -119,7 +144,7 @@ public class ExpenseControllerTest {
     @Test
     void delete_notFound_returns404() throws Exception {
         doThrow(ExpenseServiceExceptions.createExpenseNotFoundException(999L))
-            .when(expenseService).delete(999L);
+            .when(expenseService).delete(eq(999L), anyString());
         mockMvc.perform(delete("/expenses/999"))
             .andExpect(status().isNotFound())
             .andExpect(jsonPath("$.code").value("NOT_FOUND"));
@@ -127,7 +152,7 @@ public class ExpenseControllerTest {
 
     @Test
     void create_testHappyPath() throws Exception {
-        when(expenseService.create(any())).thenReturn(new CreateExpenseResponse(anExpense(1L)));
+        when(expenseService.create(any(), anyString())).thenReturn(new CreateExpenseResponse(anExpense(1L)));
         mockMvc.perform(post("/expenses")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(CREATE_PAYLOAD))
@@ -138,7 +163,7 @@ public class ExpenseControllerTest {
             .andExpect(jsonPath("$.value.amount").value(1000.00))
             .andExpect(jsonPath("$.value.description").value("Expensive Tacos"));
         
-        verify(expenseService).create(new CreateExpenseRequest(anExpense(null)));
+        verify(expenseService).create(eq(new CreateExpenseRequest(anExpense(null))), anyString());
     }
 
     @Test
@@ -162,7 +187,7 @@ public class ExpenseControllerTest {
 
     @Test
     void update_testHappyPath() throws Exception {
-        when(expenseService.update(anyLong(), any(UpdateExpenseRequest.class)))
+        when(expenseService.update(anyLong(), any(UpdateExpenseRequest.class), anyString()))
             .thenReturn(new UpdateExpenseResponse(anExpense(1L)));
         mockMvc.perform(put("/expenses/1")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -174,7 +199,7 @@ public class ExpenseControllerTest {
             .andExpect(jsonPath("$.value.amount").value(1000.00))
             .andExpect(jsonPath("$.value.description").value("Expensive Tacos"));
 
-        verify(expenseService).update(1L, new UpdateExpenseRequest(anExpense(1L)));
+        verify(expenseService).update(eq(1L), eq(new UpdateExpenseRequest(anExpense(1L))), anyString());
     }
 
     @Test
@@ -200,7 +225,7 @@ public class ExpenseControllerTest {
     @ParameterizedTest(name = "create_invalidExpense-{0}")
     @MethodSource("serviceExcptions")
     void create_invalidExpense(String testName, RuntimeException exception, ResultMatcher statusMatcher) throws Exception {
-        when(expenseService.create(any()))
+        when(expenseService.create(any(), anyString()))
                 .thenThrow(exception);
         mockMvc.perform(post("/expenses")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -211,7 +236,7 @@ public class ExpenseControllerTest {
     @ParameterizedTest(name = "update_invalidExpense-{0}")
     @MethodSource("serviceExcptions")
     void update_invalidExpense(String testName, RuntimeException exception, ResultMatcher statusMatcher) throws Exception {
-        when(expenseService.update(anyLong(), any(UpdateExpenseRequest.class)))
+        when(expenseService.update(anyLong(), any(UpdateExpenseRequest.class), anyString()))
                 .thenThrow(exception);
         mockMvc.perform(put("/expenses/1")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -249,7 +274,7 @@ public class ExpenseControllerTest {
             String expectedSubcategory,
             Long expectedAccountId) throws Exception {
 
-        when(expenseService.listByUser(any(), any(), any(), any(), any(),
+        when(expenseService.listByUser(any(), any(), any(), any(), any(), any(),
             expectedCategory == null ? isNull() : eq(expectedCategory),
             expectedSubcategory == null ? isNull() : eq(expectedSubcategory),
             expectedAccountId == null ? isNull() : eq(expectedAccountId)))
@@ -262,7 +287,7 @@ public class ExpenseControllerTest {
 
         mockMvc.perform(request).andExpect(status().isOk());
 
-        verify(expenseService).listByUser(eq("user-1"), isNull(), isNull(), isNull(), isNull(),
+        verify(expenseService).listByUser(eq(CALLER), eq("user-1"), isNull(), isNull(), isNull(), isNull(),
             expectedCategory == null ? isNull() : eq(expectedCategory),
             expectedSubcategory == null ? isNull() : eq(expectedSubcategory),
             expectedAccountId == null ? isNull() : eq(expectedAccountId));
@@ -281,7 +306,7 @@ public class ExpenseControllerTest {
 
     @Test
     void list_categoryAndSubcategoryBothProvided_returns400() throws Exception {
-        when(expenseService.listByUser(any(), any(), any(), any(), any(),
+        when(expenseService.listByUser(any(), any(), any(), any(), any(), any(),
             eq("Food"), eq("Groceries"), isNull()))
             .thenThrow(com.novelosoftware.expenses.exceptions.ExpenseServiceExceptions
                 .createValidationException("category and subcategory are mutually exclusive; provide at most one"));
@@ -305,7 +330,7 @@ public class ExpenseControllerTest {
                   "description": "Expensive Tacos", "subCategory": "RESTAURANT", "createdBy": "user-1" } }
             ] }
             """;
-        when(expenseService.bulkCreate(any()))
+        when(expenseService.bulkCreate(any(), anyString()))
             .thenReturn(List.of(new CreateExpenseResponse(anExpense(1L))));
 
         mockMvc.perform(post("/expenses/bulk")
@@ -317,7 +342,7 @@ public class ExpenseControllerTest {
 
     @Test
     void bulkCreate_emptyList_returns400() throws Exception {
-        when(expenseService.bulkCreate(any()))
+        when(expenseService.bulkCreate(any(), anyString()))
             .thenThrow(ExpenseServiceExceptions.createValidationException("expenses list must not be empty"));
 
         mockMvc.perform(post("/expenses/bulk")
@@ -334,7 +359,7 @@ public class ExpenseControllerTest {
                   "description": "Expensive Tacos", "subCategory": "RESTAURANT", "createdBy": "user-1" } }
             ] }
             """;
-        when(expenseService.bulkCreate(any()))
+        when(expenseService.bulkCreate(any(), anyString()))
             .thenThrow(ExpenseServiceExceptions.createValidationException("invalid account"));
 
         mockMvc.perform(post("/expenses/bulk")

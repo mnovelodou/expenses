@@ -30,6 +30,8 @@ import static org.mockito.Mockito.*;
  */
 class AccountServiceTest {
 
+    private static final String CALLER = "user-1";
+
     private static final Account VALID_ACCOUNT = new Account(
                 null,
                 "Checking",
@@ -72,7 +74,7 @@ class AccountServiceTest {
         when(repo.findByUser("user-1", 20, 0)).thenReturn(List.of(anEntity(1L)));
         when(repo.countByUser("user-1")).thenReturn(1L);
 
-        var result = service.findByUser("user-1", 0, 20);
+        var result = service.findByUser(CALLER, "user-1", 0, 20);
 
         assertEquals(1, result.content().size());
         assertEquals(1L, result.totalElements());
@@ -133,7 +135,7 @@ class AccountServiceTest {
         var createAccountRequest = new CreateAccountRequest(VALID_ACCOUNT);
         when(repo.create(any())).thenReturn(anEntity(1L));
 
-        var result = service.create(createAccountRequest);
+        var result = service.create(createAccountRequest, CALLER);
 
         assertEquals(1L, result.value().accountId());
         verify(repo).create(any());
@@ -149,14 +151,14 @@ class AccountServiceTest {
     @MethodSource("invalidAccounts")
     void create_testInvalidInputs(String testName, Account invalidAccount) {
         var createAccountRequest = new CreateAccountRequest(invalidAccount);
-        assertThrows(AccountValidationException.class, () -> service.create(createAccountRequest));
+        assertThrows(AccountValidationException.class, () -> service.create(createAccountRequest, CALLER));
     }
 
     @ParameterizedTest(name = "update_testInvalidInputs-{0}")
     @MethodSource("invalidAccounts")
     void update_testInvalidInputs(String testName, Account invalidAccount) {
         var createAccountRequest = new UpdateAccountRequest(invalidAccount);
-        assertThrows(AccountValidationException.class, () -> service.update(99L, createAccountRequest));
+        assertThrows(AccountValidationException.class, () -> service.update(99L, createAccountRequest, CALLER));
     }
 
     @Test
@@ -164,7 +166,7 @@ class AccountServiceTest {
         when(repo.findById(99L)).thenReturn(Optional.empty());
         var request = new com.novelosoftware.expenses.dto.UpdateAccountRequest(VALID_ACCOUNT);
 
-        assertThrows(AccountNotFoundException.class, () -> service.update(99L, request));
+        assertThrows(AccountNotFoundException.class, () -> service.update(99L, request, CALLER));
     }
 
     @Test
@@ -177,7 +179,7 @@ class AccountServiceTest {
             new BigDecimal("1500.00"), new BigDecimal("800.00"), "user-1", null, null);
         when(repo.update(eq(1L), any())).thenAnswer(inv -> Optional.of((AccountEntity) inv.getArgument(1)));
 
-        var result = service.update(1L, new UpdateAccountRequest(requestAccount));
+        var result = service.update(1L, new UpdateAccountRequest(requestAccount), CALLER);
 
         assertEquals(new BigDecimal("1500.00"), result.value().initialAmount());
         assertEquals(new BigDecimal("800.00"), result.value().currentAmount());
@@ -193,7 +195,7 @@ class AccountServiceTest {
             new BigDecimal("1500.00"), null, "user-1", null, null);
         when(repo.update(eq(1L), any())).thenAnswer(inv -> Optional.of((AccountEntity) inv.getArgument(1)));
 
-        var result = service.update(1L, new UpdateAccountRequest(requestAccount));
+        var result = service.update(1L, new UpdateAccountRequest(requestAccount), CALLER);
 
         assertEquals(new BigDecimal("1500.00"), result.value().initialAmount());
         assertEquals(new BigDecimal("1200.00"), result.value().currentAmount());
@@ -209,7 +211,7 @@ class AccountServiceTest {
             null, new BigDecimal("900.00"), "user-1", null, null);
         when(repo.update(eq(1L), any())).thenAnswer(inv -> Optional.of((AccountEntity) inv.getArgument(1)));
 
-        var result = service.update(1L, new UpdateAccountRequest(requestAccount));
+        var result = service.update(1L, new UpdateAccountRequest(requestAccount), CALLER);
 
         assertEquals(new BigDecimal("1000.00"), result.value().initialAmount());
         assertEquals(new BigDecimal("900.00"), result.value().currentAmount());
@@ -217,9 +219,42 @@ class AccountServiceTest {
 
     @Test
     void delete_throwsWhenNotFound() {
-        when(repo.delete(99L)).thenReturn(false);
+        when(repo.findById(99L)).thenReturn(Optional.empty());
 
-        assertThrows(AccountNotFoundException.class, () -> service.delete(99L));
+        assertThrows(AccountNotFoundException.class, () -> service.delete(99L, CALLER));
+    }
+
+    @Test
+    void delete_notOwned_throwsAccountNotFound() {
+        when(repo.findById(1L)).thenReturn(Optional.of(anEntity(1L))); // owned by user-1
+        assertThrows(AccountNotFoundException.class, () -> service.delete(1L, "intruder"));
+    }
+
+    @Test
+    void getById_notOwned_throwsAccountNotFound() {
+        when(repo.findById(1L)).thenReturn(Optional.of(anEntity(1L))); // owned by user-1
+        assertThrows(AccountNotFoundException.class, () -> service.getById(1L, false, "intruder"));
+    }
+
+    @Test
+    void update_notOwned_throwsAccountNotFound() {
+        when(repo.findById(1L)).thenReturn(Optional.of(anEntity(1L))); // stored row owned by user-1
+        // Body owner matches the caller, so impersonation passes; the stored-row check denies.
+        var request = new UpdateAccountRequest(VALID_ACCOUNT.toBuilder().createdBy("intruder").build());
+        assertThrows(AccountNotFoundException.class, () -> service.update(1L, request, "intruder"));
+    }
+
+    @Test
+    void create_impersonatingAnotherUser_throwsUnauthorized() {
+        var request = new CreateAccountRequest(VALID_ACCOUNT); // createdBy user-1
+        assertThrows(com.novelosoftware.expenses.exceptions.AccountServiceExceptions.UnauthorizedAccountException.class,
+            () -> service.create(request, "intruder"));
+    }
+
+    @Test
+    void findByUser_requestedUserNotCaller_throwsAccountNotFound() {
+        assertThrows(AccountNotFoundException.class,
+            () -> service.findByUser(CALLER, "someone-else", 0, 20));
     }
 
     private AccountEntity anEntity(Long id) {

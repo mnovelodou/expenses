@@ -1,6 +1,7 @@
 package com.novelosoftware.expenses.controllers;
 
 import com.novelosoftware.expenses.dto.*;
+import com.novelosoftware.expenses.security.CurrentUser;
 import com.novelosoftware.expenses.services.AccountService;
 import com.novelosoftware.expenses.services.ExpenseService;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -41,7 +42,7 @@ public class AccountController {
     public Account getById(
             @PathVariable Long id,
             @RequestParam(defaultValue = "false") boolean includeGap) {
-        return service.getById(id, includeGap);
+        return service.getById(id, includeGap, CurrentUser.requireSubject());
     }
 
     /**
@@ -58,7 +59,7 @@ public class AccountController {
             @PathVariable String userId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return service.findByUser(userId, page, size);
+        return service.findByUser(CurrentUser.requireSubject(), userId, page, size);
     }
 
     /**
@@ -71,7 +72,7 @@ public class AccountController {
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAuthority('SCOPE_write:accounts')")
     public CreateAccountResponse create(@RequestBody CreateAccountRequest request) {
-        return service.create(request);
+        return service.create(request, CurrentUser.requireSubject());
     }
 
     /**
@@ -84,7 +85,7 @@ public class AccountController {
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('SCOPE_write:accounts')")
     public UpdateAccountResponse update(@PathVariable Long id, @RequestBody UpdateAccountRequest request) {
-        return service.update(id, request);
+        return service.update(id, request, CurrentUser.requireSubject());
     }
 
     /**
@@ -96,7 +97,7 @@ public class AccountController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @PreAuthorize("hasAuthority('SCOPE_write:accounts')")
     public void delete(@PathVariable Long id) {
-        service.delete(id);
+        service.delete(id, CurrentUser.requireSubject());
     }
 
     /**
@@ -125,7 +126,9 @@ public class AccountController {
             @RequestParam(value = "category", required = false) String category,
             @RequestParam(value = "subcategory", required = false) String subcategory) {
 
-        String userId = service.getById(id).createdBy();
-        return expenseService.listByUser(userId, startDate, endDate, limit, cursor, category, subcategory, id);
+        // Verify the caller owns the account before deriving its owner for the expense query.
+        String callerSub = CurrentUser.requireSubject();
+        String userId = service.getById(id, false, callerSub).createdBy();
+        return expenseService.listByUser(callerSub, userId, startDate, endDate, limit, cursor, category, subcategory, id);
     }
 }
