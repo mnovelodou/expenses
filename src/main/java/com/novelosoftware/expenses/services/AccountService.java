@@ -5,12 +5,12 @@ import com.novelosoftware.expenses.entities.AccountEntity;
 import com.novelosoftware.expenses.exceptions.AccountServiceExceptions;
 import com.novelosoftware.expenses.mappers.AccountMapper;
 import com.novelosoftware.expenses.repositories.AccountRepository;
+import com.novelosoftware.expenses.repositories.ExpenseRepository;
 
 import ch.qos.logback.core.util.StringUtil;
 
 import java.math.BigDecimal;
 
-import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 
@@ -22,16 +22,15 @@ import org.springframework.stereotype.Service;
 public class AccountService {
 
     private final AccountRepository repo;
-    private final ExpenseService expenseService;
+    private final ExpenseRepository expenseRepo;
 
     /**
-     * @param repo           the repository for account persistence
-     * @param expenseService the expenses domain service used to total spending for the gap calculation;
-     *                       injected lazily because ExpenseService also depends on AccountService
+     * @param repo        the repository for account persistence
+     * @param expenseRepo the repository used to total spending for the gap calculation
      */
-    public AccountService(AccountRepository repo, @Lazy ExpenseService expenseService) {
+    public AccountService(AccountRepository repo, ExpenseRepository expenseRepo) {
         this.repo = repo;
-        this.expenseService = expenseService;
+        this.expenseRepo = expenseRepo;
     }
 
     /**
@@ -146,7 +145,7 @@ public class AccountService {
         if (entity.periodStart() == null) {
             return null;
         }
-        var expenseSum = expenseService.sumByAccountSince(entity.accountId(), entity.periodStart());
+        var expenseSum = expenseRepo.sumByAccountSince(entity.accountId(), entity.periodStart());
         return entity.currentAmount().subtract(entity.initialAmount()).subtract(expenseSum);
     }
 }

@@ -19,7 +19,6 @@ import com.novelosoftware.expenses.util.DateWindowResolver;
 import com.novelosoftware.expenses.util.DateWindow;
 import com.novelosoftware.expenses.util.ExpenseCursor;
 
-import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
@@ -208,18 +207,6 @@ public class ExpenseService {
         }
 
         return new CursorPageResponse<>(expenses, nextCursor, resolvedLimit);
-    }
-
-    /**
-     * Sums the amounts of all expenses for an account on or after the given date.
-     * Used by the account gap calculation to total spending since the tracking period start.
-     *
-     * @param accountId the account whose expenses to aggregate
-     * @param since     inclusive lower bound on {@code expense_date}
-     * @return the sum of matching expense amounts, or zero if none match
-     */
-    public BigDecimal sumByAccountSince(Long accountId, LocalDate since) {
-        return repo.sumByAccountSince(accountId, since);
     }
 
     private void expenseWriteValidations(Expense expense) {
