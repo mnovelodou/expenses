@@ -591,7 +591,9 @@ class ExpenseControllerIT extends BaseIT {
     }
 
     @Test
-    void update_unauthorizedAccountOnwerChange() throws Exception {
+    void update_referencingAnotherUsersAccount_returns404() throws Exception {
+        // Pointing at an account owned by someone else must be hidden as 404 (no existence
+        // disclosure), not 403 — same non-disclosure guarantee as any non-owned resource.
         Long expenseId = createExpense(firstAccountId, USER);
         Long thirdAccount = createAccount("third-person-account", "another-user-id");
         mockMvc.perform(put("/expenses/" + expenseId)
@@ -610,9 +612,8 @@ class ExpenseControllerIT extends BaseIT {
                         }
                     }
                 """.formatted(expenseId, thirdAccount, USER)))
-            .andExpect(status().isForbidden())
-            .andExpect(jsonPath("$.code").value("FORBIDDEN"))
-            .andExpect(jsonPath("$.message").value("User does not own the given account"));
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.code").value("NOT_FOUND"));
     }
 
     @Test

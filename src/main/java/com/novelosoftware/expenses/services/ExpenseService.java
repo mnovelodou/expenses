@@ -4,7 +4,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.novelosoftware.expenses.dto.Account;
 import com.novelosoftware.expenses.dto.BulkCreateExpensesRequest;
 import com.novelosoftware.expenses.dto.CreateExpenseRequest;
 import com.novelosoftware.expenses.dto.CreateExpenseResponse;
@@ -254,10 +253,8 @@ public class ExpenseService {
             throw createUnauthorizedExpenseException("Cannot write expenses on behalf of another user");
         }
 
-        Account account = accountService.getById(expense.accountId());
-        
-        if (!account.createdBy().equals(expense.createdBy())) {
-            throw createUnauthorizedExpenseException("User does not own the given account");
-        }
+        // Resolve the account through the ownership-checked accessor so a missing account and
+        // someone else's account are both hidden as 404 (no existence disclosure).
+        accountService.getById(expense.accountId(), false, callerSub);
     }
 }

@@ -48,15 +48,18 @@ public class AccountController {
     /**
      * Returns a paginated list of accounts belonging to a given user.
      *
-     * @param userId the user ID
+     * <p>The user is optional: calling {@code /accounts/user} (no path variable) defaults
+     * to the authenticated caller. When supplied it must equal the caller's identity.
+     *
+     * @param userId the user ID; optional, defaults to the caller
      * @param page   zero-based page number (default 0)
      * @param size   number of items per page (default 20)
      * @return paginated accounts owned by the user
      */
-    @GetMapping("/user/{userId}")
+    @GetMapping({"/user", "/user/{userId}"})
     @PreAuthorize("hasAuthority('SCOPE_read:accounts')")
     public PageResponse<Account> findByUser(
-            @PathVariable String userId,
+            @PathVariable(required = false) String userId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return service.findByUser(CurrentUser.requireSubject(), userId, page, size);

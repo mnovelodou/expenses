@@ -159,6 +159,27 @@ class AccountControllerIT extends BaseIT {
     }
 
     @Test
+    void getByUser_omittedUserId_defaultsToCaller() throws Exception {
+        // No path variable: /accounts/user scopes to the authenticated caller.
+        createAccount("Account A", "user-default");
+        createAccount("Account B", "user-default");
+
+        mockMvc.perform(get("/accounts/user")
+                .with(fullScopeJwtAs("user-default")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.totalElements").value(2))
+            .andExpect(jsonPath("$.content.length()").value(2))
+            .andExpect(jsonPath("$.content[0].createdBy").value("user-default"));
+    }
+
+    @Test
+    void getByUser_requestedUserNotCaller_returns404() throws Exception {
+        mockMvc.perform(get("/accounts/user/{userId}", "someone-else")
+                .with(fullScopeJwtAs("user-default")))
+            .andExpect(status().isNotFound());
+    }
+
+    @Test
     void getByUser_unknownUser_returnsEmptyPage() throws Exception {
         mockMvc.perform(get("/accounts/user/{userId}", "no-such-user")
                 .with(fullScopeJwtAs("no-such-user")))

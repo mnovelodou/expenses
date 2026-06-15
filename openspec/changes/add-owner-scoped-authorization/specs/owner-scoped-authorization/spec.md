@@ -95,6 +95,11 @@ Create and update operations (`POST`/`PUT` for expenses and accounts) SHALL requ
 - **WHEN** a caller submits an update with `body.createdBy` not equal to their `sub`
 - **THEN** the system denies the request and does not modify the resource
 
+#### Scenario: Expense write referencing a non-owned account
+
+- **WHEN** a caller creates or updates an expense referencing an account whose `createdBy` is not their `sub`, or an account that does not exist
+- **THEN** the system responds 404 Not Found without distinguishing a non-owned account from a missing one
+
 ### Requirement: Deletes require caller ownership
 
 Delete operations (`DELETE /expenses/{id}`, `DELETE /accounts/{id}`) SHALL fetch the resource and delete it only when its `createdBy` equals the caller's `sub`.
