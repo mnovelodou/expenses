@@ -499,7 +499,7 @@ class AccountControllerIT extends BaseIT {
 
     @Test
     void update_withoutPeriodStart_preservesExistingPeriodStart() throws Exception {
-        long id = createAccount("Period Card", "user-it");
+        long id = createAccount("Period Card", "user-it"); // seeded with periodStart = DEFAULT_PERIOD_START
 
         mockMvc.perform(put("/accounts/{id}", id)
                 .with(fullScopeJwt())
@@ -512,7 +512,7 @@ class AccountControllerIT extends BaseIT {
 
         mockMvc.perform(get("/accounts/{id}", id)
                 .with(fullScopeJwt()))
-            .andExpect(jsonPath("$.periodStart").value("2026-06-01"));
+            .andExpect(jsonPath("$.periodStart").value(DEFAULT_PERIOD_START));
     }
 
     @Test

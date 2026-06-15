@@ -48,6 +48,9 @@ public abstract class BaseIT {
         registry.add("spring.datasource.password", postgres::getPassword);
     }
 
+    /** period_start assigned to every account created via {@link #createAccount}; assert against this constant. */
+    protected static final String DEFAULT_PERIOD_START = "2026-06-01";
+
     @Autowired
     protected MockMvc mockMvc;
 
@@ -71,8 +74,8 @@ public abstract class BaseIT {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     { "value": { "name": "%s", "accountType": "DEBIT", "currency": "USD",
-                      "initialAmount": 1000.00, "createdBy": "%s", "periodStart": "2026-06-01" } }
-                    """.formatted(name, userId)))
+                      "initialAmount": 1000.00, "createdBy": "%s", "periodStart": "%s" } }
+                    """.formatted(name, userId, DEFAULT_PERIOD_START)))
             .andExpect(status().isCreated())
             .andReturn().getResponse().getContentAsString();
         return objectMapper.readTree(response).path("value").path("accountId").asLong();

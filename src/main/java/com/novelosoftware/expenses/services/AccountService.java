@@ -5,12 +5,12 @@ import com.novelosoftware.expenses.entities.AccountEntity;
 import com.novelosoftware.expenses.exceptions.AccountServiceExceptions;
 import com.novelosoftware.expenses.mappers.AccountMapper;
 import com.novelosoftware.expenses.repositories.AccountRepository;
-import com.novelosoftware.expenses.repositories.ExpenseRepository;
 
 import ch.qos.logback.core.util.StringUtil;
 
 import java.math.BigDecimal;
 
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 
@@ -22,15 +22,16 @@ import org.springframework.stereotype.Service;
 public class AccountService {
 
     private final AccountRepository repo;
-    private final ExpenseRepository expenseRepo;
+    private final ExpenseService expenseService;
 
     /**
-     * @param repo        the repository for account persistence
-     * @param expenseRepo the repository used to aggregate expenses for the gap calculation
+     * @param repo           the repository for account persistence
+     * @param expenseService the expenses domain service used to total spending for the gap calculation;
+     *                       injected lazily because ExpenseService also depends on AccountService
      */
-    public AccountService(AccountRepository repo, ExpenseRepository expenseRepo) {
+    public AccountService(AccountRepository repo, @Lazy ExpenseService expenseService) {
         this.repo = repo;
-        this.expenseRepo = expenseRepo;
+        this.expenseService = expenseService;
     }
 
     /**
@@ -44,7 +45,7 @@ public class AccountService {
     public Account getById(Long id, boolean includeGap) {
         var entity = repo.findById(id)
             .orElseThrow(() -> AccountServiceExceptions.createAccountNotFoundException(id));
-        return includeGap ? AccountMapper.toDto(entity, computeGap(entity)) : AccountMapper.toDto(entity);
+        return includeGap ? AccountMapper.toDto(entity, computeAccountGap(entity)) : AccountMapper.toDto(entity);
     }
 
     /**
@@ -141,11 +142,11 @@ public class AccountService {
         }
     }
 
-    private BigDecimal computeGap(AccountEntity entity) {
+    private BigDecimal computeAccountGap(AccountEntity entity) {
         if (entity.periodStart() == null) {
             return null;
         }
-        var expenseSum = expenseRepo.sumByAccountSince(entity.accountId(), entity.periodStart());
+        var expenseSum = expenseService.sumByAccountSince(entity.accountId(), entity.periodStart());
         return entity.currentAmount().subtract(entity.initialAmount()).subtract(expenseSum);
     }
 }

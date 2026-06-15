@@ -8,7 +8,6 @@ import com.novelosoftware.expenses.entities.AccountEntity;
 import com.novelosoftware.expenses.exceptions.AccountServiceExceptions.AccountNotFoundException;
 import com.novelosoftware.expenses.exceptions.AccountServiceExceptions.AccountValidationException;
 import com.novelosoftware.expenses.repositories.AccountRepository;
-import com.novelosoftware.expenses.repositories.ExpenseRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -64,8 +63,8 @@ class AccountServiceTest {
                 null);
 
     private final AccountRepository repo = mock(AccountRepository.class);
-    private final ExpenseRepository expenseRepo = mock(ExpenseRepository.class);
-    private final AccountService service = new AccountService(repo, expenseRepo);
+    private final ExpenseService expenseService = mock(ExpenseService.class);
+    private final AccountService service = new AccountService(repo, expenseService);
 
     @Test
     void getByUser_returnsPaginatedAccounts() {
@@ -96,14 +95,14 @@ class AccountServiceTest {
         var result = service.getById(1L, false);
 
         assertNull(result.gap());
-        verify(expenseRepo, never()).sumByAccountSince(any(), any());
+        verify(expenseService, never()).sumByAccountSince(any(), any());
     }
 
     @Test
     void getById_withGap_computesGapFromExpensesSincePeriodStart() {
         // initial 1000, current 1500, expenses since period_start = 200 -> gap = 1500 - 1000 - 200 = 300
         when(repo.findById(1L)).thenReturn(Optional.of(anEntityWithPeriodStart(1L)));
-        when(expenseRepo.sumByAccountSince(1L, LocalDate.of(2026, 6, 1)))
+        when(expenseService.sumByAccountSince(1L, LocalDate.of(2026, 6, 1)))
             .thenReturn(new BigDecimal("200.00"));
 
         var result = service.getById(1L, true);
@@ -118,7 +117,7 @@ class AccountServiceTest {
         var result = service.getById(1L, true);
 
         assertNull(result.gap());
-        verify(expenseRepo, never()).sumByAccountSince(any(), any());
+        verify(expenseService, never()).sumByAccountSince(any(), any());
     }
 
     @Test
