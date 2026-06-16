@@ -34,31 +34,11 @@ public class AccountService {
     }
 
     /**
-     * Returns a single account by ID.
-     *
-     * @param id         the account ID
-     * @param includeGap if true, computes and attaches the reconciliation gap
-     * @return the account DTO
-     * @throws AccountNotFoundException if no account exists with the given ID
-     */
-    public Account getById(Long id, boolean includeGap) {
-        var entity = repo.findById(id)
-            .orElseThrow(() -> AccountServiceExceptions.createAccountNotFoundException(id));
-        return includeGap ? AccountMapper.toDto(entity, computeAccountGap(entity)) : AccountMapper.toDto(entity);
-    }
-
-    /**
-     * Returns a single account by ID without gap calculation.
-     *
-     * <p>Internal, non-ownership-checked accessor for service-to-service use. Caller-facing
-     * paths must use {@link #getById(Long, boolean, String)}.
-     */
-    public Account getById(Long id) {
-        return getById(id, false);
-    }
-
-    /**
      * Returns a single account by ID, verifying the caller owns it.
+     *
+     * <p>Ownership is the security boundary: there is intentionally no non-ownership-checked
+     * overload, so every read path must supply {@code callerSub} and cannot accidentally
+     * bypass the owner check.
      *
      * @param id         the account ID
      * @param includeGap if true, computes and attaches the reconciliation gap

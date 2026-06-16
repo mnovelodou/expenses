@@ -86,7 +86,7 @@ class AccountServiceTest {
     void getById_returnsAccount() {
         when(repo.findById(1L)).thenReturn(Optional.of(anEntity(1L)));
 
-        var result = service.getById(1L);
+        var result = service.getById(1L, false, CALLER);
 
         assertEquals(1L, result.accountId());
     }
@@ -95,7 +95,7 @@ class AccountServiceTest {
     void getById_withoutGap_doesNotComputeGap() {
         when(repo.findById(1L)).thenReturn(Optional.of(anEntityWithPeriodStart(1L)));
 
-        var result = service.getById(1L, false);
+        var result = service.getById(1L, false, CALLER);
 
         assertNull(result.gap());
         verify(expenseRepo, never()).sumByAccountSince(any(), any());
@@ -108,7 +108,7 @@ class AccountServiceTest {
         when(expenseRepo.sumByAccountSince(1L, LocalDate.of(2026, 6, 1)))
             .thenReturn(new BigDecimal("200.00"));
 
-        var result = service.getById(1L, true);
+        var result = service.getById(1L, true, CALLER);
 
         assertEquals(new BigDecimal("300.00"), result.gap());
     }
@@ -117,7 +117,7 @@ class AccountServiceTest {
     void getById_withGap_nullPeriodStart_returnsNullGapWithoutQuerying() {
         when(repo.findById(1L)).thenReturn(Optional.of(anEntity(1L))); // period_start is null
 
-        var result = service.getById(1L, true);
+        var result = service.getById(1L, true, CALLER);
 
         assertNull(result.gap());
         verify(expenseRepo, never()).sumByAccountSince(any(), any());
@@ -127,7 +127,7 @@ class AccountServiceTest {
     void getById_throwsWhenNotFound() {
         when(repo.findById(99L)).thenReturn(Optional.empty());
 
-        assertThrows(AccountNotFoundException.class, () -> service.getById(99L));
+        assertThrows(AccountNotFoundException.class, () -> service.getById(99L, false, CALLER));
     }
 
     @Test
