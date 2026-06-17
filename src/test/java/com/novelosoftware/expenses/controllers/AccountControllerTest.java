@@ -19,7 +19,6 @@ import java.time.LocalDate;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
@@ -45,31 +44,10 @@ class AccountControllerTest {
     @MockitoBean
     private ExpenseService expenseService;
 
-    /** Subject of the authenticated caller in these tests; matches fixtures' createdBy. */
-    private static final String CALLER = "user-1";
-
-    @org.junit.jupiter.api.BeforeEach
-    void authenticate() {
-        // addFilters=false skips the security filter chain, so populate the context directly.
-        org.springframework.security.oauth2.jwt.Jwt jwt =
-            org.springframework.security.oauth2.jwt.Jwt.withTokenValue("token")
-                .header("alg", "none")
-                .subject(CALLER)
-                .claim("scope", "read:accounts write:accounts read:expenses")
-                .build();
-        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
-            new org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken(jwt));
-    }
-
-    @org.junit.jupiter.api.AfterEach
-    void clearAuthentication() {
-        org.springframework.security.core.context.SecurityContextHolder.clearContext();
-    }
-
     @Test
     void getByUser_returnsPaginatedAccounts() throws Exception {
         var page = new PageResponse<>(List.of(anAccount(1L)), 0, 20, 1L, 1);
-        when(service.findByUser(CALLER, "user-1", 0, 20)).thenReturn(page);
+        when(service.findByUser("user-1", 0, 20)).thenReturn(page);
 
         mockMvc.perform(get("/accounts/user/user-1"))
             .andExpect(status().isOk())
@@ -82,7 +60,7 @@ class AccountControllerTest {
 
     @Test
     void getById_returnsOk() throws Exception {
-        when(service.getById(1L, false, CALLER)).thenReturn(anAccount(1L));
+        when(service.getById(1L, false)).thenReturn(anAccount(1L));
 
         mockMvc.perform(get("/accounts/1"))
             .andExpect(status().isOk())
@@ -91,7 +69,7 @@ class AccountControllerTest {
 
     @Test
     void getById_notFound_returns404() throws Exception {
-        when(service.getById(99L, false, CALLER)).thenThrow(createAccountNotFoundException(99L));
+        when(service.getById(99L, false)).thenThrow(createAccountNotFoundException(99L));
 
         mockMvc.perform(get("/accounts/99"))
             .andExpect(status().isNotFound())
@@ -101,7 +79,7 @@ class AccountControllerTest {
 
     @Test
     void create_returnsCreated() throws Exception {
-        when(service.create(any(), anyString())).thenReturn(new CreateAccountResponse(anAccount(1L)));
+        when(service.create(any())).thenReturn(new CreateAccountResponse(anAccount(1L)));
 
         mockMvc.perform(post("/accounts")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -114,7 +92,7 @@ class AccountControllerTest {
 
     @Test
     void update_notFound_returns404() throws Exception {
-        when(service.update(eq(99L), any(), anyString())).thenThrow(createAccountNotFoundException(99L));
+        when(service.update(eq(99L), any())).thenThrow(createAccountNotFoundException(99L));
 
         mockMvc.perform(put("/accounts/99")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -132,7 +110,7 @@ class AccountControllerTest {
 
     @Test
     void delete_notFound_returns404() throws Exception {
-        doThrow(createAccountNotFoundException(99L)).when(service).delete(eq(99L), anyString());
+        doThrow(createAccountNotFoundException(99L)).when(service).delete(99L);
 
         mockMvc.perform(delete("/accounts/99"))
             .andExpect(status().isNotFound());
@@ -170,9 +148,9 @@ class AccountControllerTest {
             new BigDecimal("42.50"), "Tacos", SubCategory.RESTAURANT, "user-1");
         CursorPageResponse<Expense> page = new CursorPageResponse<>(List.of(expense), null, 20);
 
-        when(service.getById(1L, false, CALLER)).thenReturn(anAccount(1L));
-        when(expenseService.listByUser(eq(CALLER), eq("user-1"), isNull(), isNull(), isNull(), isNull(),
-            isNull(), isNull(), eq(1L))).thenReturn(page);
+        // Ownership is enforced inside listByAccount, so the controller just delegates.
+        when(expenseService.listByAccount(eq(1L), isNull(), isNull(), isNull(), isNull(),
+            isNull(), isNull())).thenReturn(page);
 
         mockMvc.perform(get("/accounts/1/expenses"))
             .andExpect(status().isOk())
@@ -182,7 +160,8 @@ class AccountControllerTest {
 
     @Test
     void listExpenses_accountNotFound_returns404() throws Exception {
-        when(service.getById(99L, false, CALLER)).thenThrow(createAccountNotFoundException(99L));
+        when(expenseService.listByAccount(eq(99L), any(), any(), any(), any(), any(), any()))
+            .thenThrow(createAccountNotFoundException(99L));
 
         mockMvc.perform(get("/accounts/99/expenses"))
             .andExpect(status().isNotFound())
@@ -191,9 +170,8 @@ class AccountControllerTest {
 
     @Test
     void listExpenses_categoryAndSubcategoryBothProvided_returns400() throws Exception {
-        when(service.getById(1L, false, CALLER)).thenReturn(anAccount(1L));
-        when(expenseService.listByUser(any(), any(), any(), any(), any(), any(),
-            eq("Food"), eq("Groceries"), eq(1L)))
+        when(expenseService.listByAccount(eq(1L), any(), any(), any(), any(),
+            eq("Food"), eq("Groceries")))
             .thenThrow(ExpenseServiceExceptions.createValidationException(
                 "category and subcategory are mutually exclusive; provide at most one"));
 

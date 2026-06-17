@@ -18,7 +18,7 @@ The API is a Spring Boot resource server validating Auth0 JWTs. `SecurityConfig`
 
 ## Decisions
 
-**Identity source — JWT `sub`.** A small helper in the `security` package resolves the current caller's `sub` from `SecurityContextHolder` (`Jwt.getSubject()`). It throws/denies if absent. All ownership checks route through this single method so the rule is defined once. Services receive the caller `sub` as an explicit argument (passed from controllers) rather than reaching into the security context themselves, keeping services unit-testable without a security context.
+**Identity source — JWT `sub`.** A `CurrentUser` Spring component in the `security` package resolves the current caller's `sub` from `SecurityContextHolder` (`Jwt.getSubject()`). It throws/denies if absent. All ownership checks route through this single method so the rule is defined once. `CurrentUser` is injected into the services (not the controllers): obtaining the caller is business logic, so services call `currentUser.requireSubject()` themselves and controllers stay thin. Being an injectable component, it is trivially mocked in service unit tests.
 
 **Finders default to self.** `user_id` / `userId` become optional. Resolution: `requested = (param == null) ? callerSub : param`; then `if (!requested.equals(callerSub)) deny404`. This satisfies "default to self OR must equal self" and leaves a clean seam for the future ADMIN role (which will relax the equality check).
 
@@ -35,7 +35,7 @@ The API is a Spring Boot resource server validating Auth0 JWTs. `SecurityConfig`
 ## Risks / Trade-offs
 
 - **404-for-forbidden** trades debuggability for non-disclosure; acceptable for an owner-scoped API and consistent with the chosen requirement.
-- **Services gaining a `callerSub` parameter** touches method signatures and their call sites/tests; mechanical but broad.
+- **Services depending on `CurrentUser`** couples them to the security context, but that coupling is explicit (constructor injection) and mockable, and it keeps controllers free of auth plumbing.
 - **Test churn**: most integration tests change because the mock JWT subject must now line up with seeded data. Expected and necessary.
 - **Create-time impersonation response code** is the one spot where the exact status (403 vs 422) is a judgement call; chosen to mirror existing `createUnauthorized*` behavior rather than 404, since the resource has no prior owner to hide.
 - **ADMIN deferral**: the equality checks are written so a future role check can wrap them without restructuring.
