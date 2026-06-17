@@ -3,6 +3,7 @@ package com.novelosoftware.expenses.exceptions;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.novelosoftware.expenses.exceptions.AccountServiceExceptions.AccountNotFoundException;
 import com.novelosoftware.expenses.exceptions.AccountServiceExceptions.AccountValidationException;
+import com.novelosoftware.expenses.exceptions.AccountServiceExceptions.UnauthorizedAccountException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -123,6 +124,17 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(UnauthorizedExpenseException.class)
     public ResponseEntity<ErrorResponse> handleUnauthorizedAccountException(UnauthorizedExpenseException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+            .body(new ErrorResponse("FORBIDDEN", ex.getMessage()));
+    }
+
+    /**
+     * Handles attempts to act on behalf of another user on account writes.
+     * @param ex the exception carrying the reason
+     * @return 403 response with FORBIDDEN error code
+     */
+    @ExceptionHandler(UnauthorizedAccountException.class)
+    public ResponseEntity<ErrorResponse> handleUnauthorizedAccountException(UnauthorizedAccountException ex) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
             .body(new ErrorResponse("FORBIDDEN", ex.getMessage()));
     }

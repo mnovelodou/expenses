@@ -5,10 +5,12 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -43,12 +45,15 @@ import com.novelosoftware.expenses.dto.SubCategory;
 import com.novelosoftware.expenses.dto.UpdateExpenseRequest;
 import com.novelosoftware.expenses.dto.UpdateExpenseResponse;
 import com.novelosoftware.expenses.entities.ExpenseEntity;
+import com.novelosoftware.expenses.exceptions.AccountServiceExceptions;
+import com.novelosoftware.expenses.exceptions.AccountServiceExceptions.AccountNotFoundException;
 import com.novelosoftware.expenses.exceptions.ExpenseServiceExceptions.ExpenseNotFoundException;
 import com.novelosoftware.expenses.exceptions.ExpenseServiceExceptions.ExpenseValidationException;
 import com.novelosoftware.expenses.exceptions.ExpenseServiceExceptions.InvalidCursorException;
 import com.novelosoftware.expenses.exceptions.ExpenseServiceExceptions.UnauthorizedExpenseException;
 import com.novelosoftware.expenses.mappers.CategoryMapper;
 import com.novelosoftware.expenses.repositories.ExpenseRepository;
+import com.novelosoftware.expenses.security.CurrentUser;
 import com.novelosoftware.expenses.util.ExpenseCursor;
 
 /**
@@ -58,6 +63,9 @@ import com.novelosoftware.expenses.util.ExpenseCursor;
 public class ExpenseServiceTest {
 
     private static final Long EXPENSE_ID = 31416L;
+
+    /** Owner of the test fixtures; also the authenticated caller in most cases. */
+    private static final String CALLER = "user-1";
 
     private static final Long ACCOUNT_ID = 543412L;
 
@@ -130,11 +138,16 @@ public class ExpenseServiceTest {
     @Mock
     AccountService accountService;
 
+    @Mock
+    CurrentUser currentUser;
+
     ExpenseService service;
 
     @BeforeEach
     void setUp() {
-        service = new ExpenseService(repo, accountService, FIXED_CLOCK);
+        service = new ExpenseService(repo, accountService, currentUser, FIXED_CLOCK);
+        // Most tests act as the fixture owner; impersonation tests override this.
+        lenient().when(currentUser.requireSubject()).thenReturn(CALLER);
     }
 
     // -------------------------------------------------------------------------
@@ -161,6 +174,7 @@ public class ExpenseServiceTest {
 
     @Test
     void delete_success_doesNotThrow() {
+        when(repo.get(EXPENSE_ID)).thenReturn(Optional.of(CREATED_ENTITY));
         when(repo.delete(EXPENSE_ID)).thenReturn(true);
         service.delete(EXPENSE_ID);
         verify(repo).delete(EXPENSE_ID);
@@ -168,27 +182,55 @@ public class ExpenseServiceTest {
 
     @Test
     void delete_notFound_throwsExpenseNotFoundException() {
-        when(repo.delete(EXPENSE_ID)).thenReturn(false);
+        when(repo.get(EXPENSE_ID)).thenReturn(Optional.empty());
         assertThrows(ExpenseNotFoundException.class, () -> service.delete(EXPENSE_ID));
+    }
+
+    @Test
+    void delete_notOwned_throwsExpenseNotFoundException() {
+        ExpenseEntity otherUsers = CREATED_ENTITY.toBuilder().createdBy("user-2").build();
+        when(repo.get(EXPENSE_ID)).thenReturn(Optional.of(otherUsers));
+        assertThrows(ExpenseNotFoundException.class, () -> service.delete(EXPENSE_ID));
+    }
+
+    @Test
+    void getById_notOwned_throwsExpenseNotFoundException() {
+        ExpenseEntity otherUsers = CREATED_ENTITY.toBuilder().createdBy("user-2").build();
+        when(repo.get(EXPENSE_ID)).thenReturn(Optional.of(otherUsers));
+        assertThrows(ExpenseNotFoundException.class, () -> service.getById(EXPENSE_ID));
+    }
+
+    @Test
+    void create_impersonatingAnotherUser_throwsUnauthorized() {
+        CreateExpenseRequest request = new CreateExpenseRequest(VALID_NEW_EXPENSE);
+        // VALID_NEW_EXPENSE.createdBy is "user-1"; the caller is someone else.
+        when(currentUser.requireSubject()).thenReturn("intruder");
+        assertThrows(UnauthorizedExpenseException.class, () -> service.create(request));
+    }
+
+    @Test
+    void listByUser_requestedUserNotCaller_throwsExpenseNotFoundException() {
+        assertThrows(ExpenseNotFoundException.class,
+            () -> service.listByUser("someone-else", null, null, null, null, null, null, null));
     }
 
     @Test
     void create_testHappyPath() {
         CreateExpenseRequest request = new CreateExpenseRequest(VALID_NEW_EXPENSE);
-        when(accountService.getById(VALID_NEW_EXPENSE.accountId())).thenReturn(VALID_ACCOUNT);
+        when(accountService.getById(eq(VALID_NEW_EXPENSE.accountId()), eq(false))).thenReturn(VALID_ACCOUNT);
         when(repo.create(MAPPEED_ENTITY)).thenReturn(CREATED_ENTITY);
         CreateExpenseResponse actualReponse = service.create(request);
         assertEquals(actualReponse.value(), CREATED_DTO);
     }
 
     @Test
-    void create_invalidAccount() {
+    void create_accountNotOwned_throwsAccountNotFound() {
+        // The ownership-checked account accessor hides a non-owned (or missing) account as 404.
         CreateExpenseRequest request = new CreateExpenseRequest(VALID_NEW_EXPENSE);
-        when(accountService.getById(VALID_NEW_EXPENSE.accountId())).thenReturn(VALID_ACCOUNT.toBuilder()
-            .createdBy("user-2")
-            .build());
+        when(accountService.getById(eq(VALID_NEW_EXPENSE.accountId()), eq(false)))
+            .thenThrow(AccountServiceExceptions.createAccountNotFoundException(VALID_NEW_EXPENSE.accountId()));
 
-        assertThrows(UnauthorizedExpenseException.class, () -> service.create(request));
+        assertThrows(AccountNotFoundException.class, () -> service.create(request));
     }
 
     @Test
@@ -201,42 +243,48 @@ public class ExpenseServiceTest {
             .amount(new BigDecimal("100.00"))
             .build();
 
-        when(accountService.getById(anyLong())).thenReturn(VALID_ACCOUNT);
+        when(accountService.getById(anyLong(), anyBoolean())).thenReturn(VALID_ACCOUNT);
         when(repo.get(anyLong())).thenReturn(Optional.of(existingExpense));
         when(repo.update(anyLong(), any(ExpenseEntity.class))).thenReturn(Optional.of(updatedExpenseEntity));
 
         UpdateExpenseResponse actual = service.update(EXPENSE_ID, new UpdateExpenseRequest(UPDATED_EXPENSE));
 
         assertEquals(UPDATED_EXPENSE, actual.value());
-        verify(accountService).getById(ACCOUNT_ID);
+        verify(accountService).getById(ACCOUNT_ID, false);
         verify(repo).get(EXPENSE_ID);
         verify(repo).update(EXPENSE_ID, updatedExpenseEntity);
     }
 
     @Test
-    void update_testInvalidAccount() {
-        when(accountService.getById(VALID_NEW_EXPENSE.accountId())).thenReturn(VALID_ACCOUNT.toBuilder()
-            .createdBy("user-2")
-            .build());
+    void update_accountNotOwned_throwsAccountNotFound() {
+        when(accountService.getById(eq(VALID_NEW_EXPENSE.accountId()), eq(false)))
+            .thenThrow(AccountServiceExceptions.createAccountNotFoundException(VALID_NEW_EXPENSE.accountId()));
 
-        assertThrows(UnauthorizedExpenseException.class, () -> service.update(
-            EXPENSE_ID, new UpdateExpenseRequest(UPDATED_EXPENSE)));
+        assertThrows(AccountNotFoundException.class, () -> service.update(EXPENSE_ID, new UpdateExpenseRequest(UPDATED_EXPENSE)));
     }
 
     @Test
-    void update_unauthorizedExpense() {
+    void update_notOwned_throwsExpenseNotFoundException() {
         ExpenseEntity existingExpense = MAPPEED_ENTITY.toBuilder()
             .expenseId(EXPENSE_ID)
             .createdBy("user-2")
             .build();
 
-        when(accountService.getById(anyLong())).thenReturn(VALID_ACCOUNT);
+        when(accountService.getById(anyLong(), anyBoolean())).thenReturn(VALID_ACCOUNT);
         when(repo.get(anyLong())).thenReturn(Optional.of(existingExpense));
 
-       assertThrows(UnauthorizedExpenseException.class, () -> service.update(EXPENSE_ID, new UpdateExpenseRequest(UPDATED_EXPENSE)));
+       assertThrows(ExpenseNotFoundException.class, () -> service.update(EXPENSE_ID, new UpdateExpenseRequest(UPDATED_EXPENSE)));
 
-        verify(accountService).getById(ACCOUNT_ID);
+        verify(accountService).getById(ACCOUNT_ID, false);
         verify(repo).get(EXPENSE_ID);
+    }
+
+    @Test
+    void update_impersonatingAnotherUser_throwsUnauthorized() {
+        // body.createdBy is "user-1"; the caller is someone else.
+        when(currentUser.requireSubject()).thenReturn("intruder");
+        assertThrows(UnauthorizedExpenseException.class,
+            () -> service.update(EXPENSE_ID, new UpdateExpenseRequest(UPDATED_EXPENSE)));
     }
 
     @ParameterizedTest(name = "create_testInvalidInputs-{0}")
@@ -517,7 +565,7 @@ public class ExpenseServiceTest {
         var bulkRequest = new BulkCreateExpensesRequest(List.of(request, request));
         List<ExpenseEntity> inserted = List.of(CREATED_ENTITY, CREATED_ENTITY);
 
-        when(accountService.getById(VALID_NEW_EXPENSE.accountId())).thenReturn(VALID_ACCOUNT);
+        when(accountService.getById(eq(VALID_NEW_EXPENSE.accountId()), eq(false))).thenReturn(VALID_ACCOUNT);
         when(repo.bulkInsert(List.of(MAPPEED_ENTITY, MAPPEED_ENTITY))).thenReturn(inserted);
 
         List<CreateExpenseResponse> responses = service.bulkCreate(bulkRequest);
@@ -528,13 +576,12 @@ public class ExpenseServiceTest {
     }
 
     @Test
-    void bulkCreate_oneItemInvalidAccountId_throwsUnauthorized() {
+    void bulkCreate_oneItemAccountNotOwned_throwsAccountNotFound() {
         CreateExpenseRequest request = new CreateExpenseRequest(VALID_NEW_EXPENSE);
-        when(accountService.getById(VALID_NEW_EXPENSE.accountId())).thenReturn(VALID_ACCOUNT.toBuilder()
-            .createdBy("other-user")
-            .build());
+        when(accountService.getById(eq(VALID_NEW_EXPENSE.accountId()), eq(false)))
+            .thenThrow(AccountServiceExceptions.createAccountNotFoundException(VALID_NEW_EXPENSE.accountId()));
 
-        assertThrows(UnauthorizedExpenseException.class,
+        assertThrows(AccountNotFoundException.class,
             () -> service.bulkCreate(new BulkCreateExpensesRequest(List.of(request))));
     }
 

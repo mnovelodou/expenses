@@ -11,13 +11,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 class SecurityIT extends BaseIT {
 
+    private static final String OWNER = "user-security-it";
+
     private long accountId;
     private long expenseId;
 
     @BeforeEach
     void setUp() throws Exception {
-        accountId = createAccount("Security Test Account", "user-security-it");
-        expenseId = createExpense(accountId, "user-security-it");
+        accountId = createAccount("Security Test Account", OWNER);
+        expenseId = createExpense(accountId, OWNER);
     }
 
     // -------------------------------------------------------------------------
@@ -105,7 +107,7 @@ class SecurityIT extends BaseIT {
     @Test
     void getExpenses_readExpensesToken_isNotRejected() throws Exception {
         mockMvc.perform(get("/expenses")
-                .with(jwt("read:expenses"))
+                .with(jwtAs(OWNER, "read:expenses"))
                 .param("user_id", "user-security-it")
                 .param("start_date", "2026-01-01")
                 .param("end_date", "2026-01-31"))
@@ -115,21 +117,21 @@ class SecurityIT extends BaseIT {
     @Test
     void getExpenseById_readExpensesToken_isNotRejected() throws Exception {
         mockMvc.perform(get("/expenses/{id}", expenseId)
-                .with(jwt("read:expenses")))
+                .with(jwtAs(OWNER, "read:expenses")))
             .andExpect(status().is2xxSuccessful());
     }
 
     @Test
     void deleteExpense_writeExpensesToken_isNotRejected() throws Exception {
         mockMvc.perform(delete("/expenses/{id}", expenseId)
-                .with(jwt("write:expenses")))
+                .with(jwtAs(OWNER, "write:expenses")))
             .andExpect(status().isNoContent());
     }
 
     @Test
     void getAccount_readAccountsToken_isNotRejected() throws Exception {
         mockMvc.perform(get("/accounts/{id}", accountId)
-                .with(jwt("read:accounts")))
+                .with(jwtAs(OWNER, "read:accounts")))
             .andExpect(status().is2xxSuccessful());
     }
 
@@ -137,14 +139,14 @@ class SecurityIT extends BaseIT {
     void deleteAccount_writeAccountsToken_isNotRejected() throws Exception {
         // account has an expense — expect 412, not 401/403
         mockMvc.perform(delete("/accounts/{id}", accountId)
-                .with(jwt("write:accounts")))
+                .with(jwtAs(OWNER, "write:accounts")))
             .andExpect(status().isPreconditionFailed());
     }
 
     @Test
     void getAccountExpenses_readExpensesToken_isNotRejected() throws Exception {
         mockMvc.perform(get("/accounts/{id}/expenses", accountId)
-                .with(jwt("read:expenses"))
+                .with(jwtAs(OWNER, "read:expenses"))
                 .param("start_date", "2026-01-01")
                 .param("end_date", "2026-01-31"))
             .andExpect(status().is2xxSuccessful());
@@ -165,8 +167,11 @@ class SecurityIT extends BaseIT {
 
     @Test
     void validSignedToken_isAccepted() throws Exception {
+        // TestJwtFactory issues tokens with subject "test-user"; the resource must be owned by it.
+        long ownAccount = createAccount("Signed Token Account", "test-user");
+        long ownExpense = createExpense(ownAccount, "test-user");
         String token = TestJwtFactory.createToken("read:expenses");
-        mockMvc.perform(get("/expenses/{id}", expenseId)
+        mockMvc.perform(get("/expenses/{id}", ownExpense)
                 .header("Authorization", "Bearer " + token))
             .andExpect(status().isOk());
     }

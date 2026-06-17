@@ -148,9 +148,9 @@ class AccountControllerTest {
             new BigDecimal("42.50"), "Tacos", SubCategory.RESTAURANT, "user-1");
         CursorPageResponse<Expense> page = new CursorPageResponse<>(List.of(expense), null, 20);
 
-        when(service.getById(1L)).thenReturn(anAccount(1L));
-        when(expenseService.listByUser(eq("user-1"), isNull(), isNull(), isNull(), isNull(),
-            isNull(), isNull(), eq(1L))).thenReturn(page);
+        // Ownership is enforced inside listByAccount, so the controller just delegates.
+        when(expenseService.listByAccount(eq(1L), isNull(), isNull(), isNull(), isNull(),
+            isNull(), isNull())).thenReturn(page);
 
         mockMvc.perform(get("/accounts/1/expenses"))
             .andExpect(status().isOk())
@@ -160,7 +160,8 @@ class AccountControllerTest {
 
     @Test
     void listExpenses_accountNotFound_returns404() throws Exception {
-        when(service.getById(99L)).thenThrow(createAccountNotFoundException(99L));
+        when(expenseService.listByAccount(eq(99L), any(), any(), any(), any(), any(), any()))
+            .thenThrow(createAccountNotFoundException(99L));
 
         mockMvc.perform(get("/accounts/99/expenses"))
             .andExpect(status().isNotFound())
@@ -169,9 +170,8 @@ class AccountControllerTest {
 
     @Test
     void listExpenses_categoryAndSubcategoryBothProvided_returns400() throws Exception {
-        when(service.getById(1L)).thenReturn(anAccount(1L));
-        when(expenseService.listByUser(any(), any(), any(), any(), any(),
-            eq("Food"), eq("Groceries"), eq(1L)))
+        when(expenseService.listByAccount(eq(1L), any(), any(), any(), any(),
+            eq("Food"), eq("Groceries")))
             .thenThrow(ExpenseServiceExceptions.createValidationException(
                 "category and subcategory are mutually exclusive; provide at most one"));
 

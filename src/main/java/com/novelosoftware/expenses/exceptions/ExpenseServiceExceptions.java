@@ -37,6 +37,16 @@ public final class ExpenseServiceExceptions {
     }
 
     /**
+     * Creates an ExpenseNotFoundException with a custom message. Used to hide the
+     * existence of resources the caller does not own.
+     * @param message description of the exception
+     * @return an ExpenseNotFoundException
+     */
+    public static ExpenseNotFoundException createExpenseNotFoundException(String message) {
+        return new ExpenseNotFoundException(message);
+    }
+
+    /**
      * Exception used for invalid expenses.
      */
     public static final class ExpenseValidationException extends RuntimeException {

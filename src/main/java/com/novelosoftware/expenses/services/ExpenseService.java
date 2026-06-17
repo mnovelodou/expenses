@@ -4,7 +4,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.novelosoftware.expenses.dto.Account;
 import com.novelosoftware.expenses.dto.BulkCreateExpensesRequest;
 import com.novelosoftware.expenses.dto.CreateExpenseRequest;
 import com.novelosoftware.expenses.dto.CreateExpenseResponse;
@@ -15,6 +14,7 @@ import com.novelosoftware.expenses.dto.UpdateExpenseResponse;
 import com.novelosoftware.expenses.entities.ExpenseEntity;
 import com.novelosoftware.expenses.mappers.ExpenseMapper;
 import com.novelosoftware.expenses.repositories.ExpenseRepository;
+import com.novelosoftware.expenses.security.CurrentUser;
 import com.novelosoftware.expenses.util.DateWindowResolver;
 import com.novelosoftware.expenses.util.DateWindow;
 import com.novelosoftware.expenses.util.ExpenseCursor;
@@ -30,20 +30,22 @@ import static com.novelosoftware.expenses.exceptions.ExpenseServiceExceptions.*;
  */
 @Service
 public class ExpenseService {
-    
+
     private final ExpenseRepository repo;
     private final AccountService accountService;
+    private final CurrentUser currentUser;
     private final Clock clock;
 
     @Autowired
-    public ExpenseService(ExpenseRepository repo, AccountService accountService) {
-        this(repo, accountService, Clock.systemDefaultZone());
+    public ExpenseService(ExpenseRepository repo, AccountService accountService, CurrentUser currentUser) {
+        this(repo, accountService, currentUser, Clock.systemDefaultZone());
     }
 
     /** Package-private constructor for unit tests that need a controllable clock. */
-    ExpenseService(ExpenseRepository repo, AccountService accountService, Clock clock) {
+    ExpenseService(ExpenseRepository repo, AccountService accountService, CurrentUser currentUser, Clock clock) {
         this.repo = repo;
         this.accountService = accountService;
+        this.currentUser = currentUser;
         this.clock = clock;
     }
 
@@ -62,12 +64,13 @@ public class ExpenseService {
             throw createValidationException("expenses list must not exceed 200 items");
         }
 
+        String callerSub = currentUser.requireSubject();
         List<ExpenseEntity> entities = request.expenses().stream()
             .map(req -> {
                 if (req == null || req.value() == null) {
                     throw createValidationException("Expense payload not provided");
                 }
-                expenseWriteValidations(req.value());
+                expenseWriteValidations(req.value(), callerSub);
                 return ExpenseMapper.toEntity(req.value());
             })
             .toList();
@@ -88,7 +91,7 @@ public class ExpenseService {
         }
 
         Expense expense = request.value();
-        expenseWriteValidations(expense);
+        expenseWriteValidations(expense, currentUser.requireSubject());
 
         ExpenseEntity expenseEntity = ExpenseMapper.toEntity(expense);
         ExpenseEntity createdEntity = repo.create(expenseEntity);
@@ -96,11 +99,22 @@ public class ExpenseService {
     }
 
     public Expense getById(Long id) {
+        String callerSub = currentUser.requireSubject();
         ExpenseEntity entity = repo.get(id).orElseThrow(() -> createExpenseNotFoundException(id));
+        if (!callerSub.equals(entity.createdBy())) {
+            // Hide existence of resources the caller does not own.
+            throw createExpenseNotFoundException(id);
+        }
         return ExpenseMapper.toDto(entity);
     }
 
     public void delete(Long id) {
+        String callerSub = currentUser.requireSubject();
+        // Fetch first so ownership can be verified before deleting.
+        ExpenseEntity entity = repo.get(id).orElseThrow(() -> createExpenseNotFoundException(id));
+        if (!callerSub.equals(entity.createdBy())) {
+            throw createExpenseNotFoundException(id);
+        }
         if (!repo.delete(id)) {
             throw createExpenseNotFoundException(id);
         }
@@ -115,14 +129,16 @@ public class ExpenseService {
             throw createValidationException("ID not provided");
         }
 
+        String callerSub = currentUser.requireSubject();
         Expense expense = request.value();
-        expenseWriteValidations(expense);
+        expenseWriteValidations(expense, callerSub);
 
-        // Payload is validated now we can bring previous version and make sure this is the owner.
+        // Payload is validated; bring previous version and make sure the caller owns it.
         ExpenseEntity oldExpense = repo.get(id).orElseThrow(() -> createExpenseNotFoundException(id));
 
-        if (!expense.createdBy().equals(oldExpense.createdBy())) {
-            throw createUnauthorizedExpenseException("Expense not owned by viewer");
+        if (!callerSub.equals(oldExpense.createdBy())) {
+            // Hide existence of resources the caller does not own.
+            throw createExpenseNotFoundException(id);
         }
 
         ExpenseEntity newExpense = ExpenseMapper.toEntity(expense);
@@ -144,7 +160,7 @@ public class ExpenseService {
      * <p>{@code category} and {@code subcategory} are mutually exclusive — supplying both
      * results in a validation error. {@code accountId} may be combined with either.
      *
-     * @param userId      required; the user whose expenses to list
+     * @param userId      optional; the user whose expenses to list, defaults to the caller
      * @param startDate   optional start of the date window
      * @param endDate     optional end of the date window
      * @param limit       optional page size; defaults to 20, max 100
@@ -162,10 +178,48 @@ public class ExpenseService {
                                                    String category,
                                                    String subcategory,
                                                    Long accountId) {
-        if (userId == null || userId.isBlank()) {
-            throw createValidationException("user_id is required");
+        // The requested user is optional and defaults to the caller. When supplied it must
+        // match the caller; a mismatch is hidden as a 404 (ADMIN cross-user access is deferred).
+        String callerSub = currentUser.requireSubject();
+        String requestedUser = (userId == null || userId.isBlank()) ? callerSub : userId;
+        if (!requestedUser.equals(callerSub)) {
+            throw createExpenseNotFoundException("No expenses found for the requested user");
         }
 
+        return listForOwner(requestedUser, startDate, endDate, limit, cursorToken, category, subcategory, accountId);
+    }
+
+    /**
+     * Lists expenses for a specific account after verifying the caller owns the account.
+     * The owner is derived from the account, so ownership is enforced before any expense is read.
+     *
+     * @param accountId the account whose expenses to list
+     * @return a page of expenses with an optional next-page cursor
+     */
+    public CursorPageResponse<Expense> listByAccount(Long accountId,
+                                                      LocalDate startDate,
+                                                      LocalDate endDate,
+                                                      Integer limit,
+                                                      String cursorToken,
+                                                      String category,
+                                                      String subcategory) {
+        // Ownership-checked: a non-owned or missing account is hidden as 404.
+        String owner = accountService.getById(accountId, false).createdBy();
+        return listForOwner(owner, startDate, endDate, limit, cursorToken, category, subcategory, accountId);
+    }
+
+    /**
+     * Core listing logic shared by {@link #listByUser} and {@link #listByAccount}. The {@code userId}
+     * is assumed already resolved and authorized by the caller.
+     */
+    private CursorPageResponse<Expense> listForOwner(String userId,
+                                                     LocalDate startDate,
+                                                     LocalDate endDate,
+                                                     Integer limit,
+                                                     String cursorToken,
+                                                     String category,
+                                                     String subcategory,
+                                                     Long accountId) {
         // --- Validate mutually exclusive filters ---
         if (category != null && subcategory != null) {
             throw createValidationException("category and subcategory are mutually exclusive; provide at most one");
@@ -209,7 +263,7 @@ public class ExpenseService {
         return new CursorPageResponse<>(expenses, nextCursor, resolvedLimit);
     }
 
-    private void expenseWriteValidations(Expense expense) {
+    private void expenseWriteValidations(Expense expense, String callerSub) {
         if (expense.expenseDate() == null) {
             throw createValidationException("expenseDate cannot be null");
         }
@@ -234,10 +288,13 @@ public class ExpenseService {
             throw createValidationException("createdBy cannot be null");
         }
 
-        Account account = accountService.getById(expense.accountId());
-        
-        if (!account.createdBy().equals(expense.createdBy())) {
-            throw createUnauthorizedExpenseException("User does not own the given account");
+        // A caller may only write expenses on their own behalf.
+        if (!callerSub.equals(expense.createdBy())) {
+            throw createUnauthorizedExpenseException("Cannot write expenses on behalf of another user");
         }
+
+        // Resolve the account through the ownership-checked accessor so a missing account and
+        // someone else's account are both hidden as 404 (no existence disclosure).
+        accountService.getById(expense.accountId(), false);
     }
 }

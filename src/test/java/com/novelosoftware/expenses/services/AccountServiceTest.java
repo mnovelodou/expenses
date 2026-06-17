@@ -7,8 +7,11 @@ import com.novelosoftware.expenses.dto.UpdateAccountRequest;
 import com.novelosoftware.expenses.entities.AccountEntity;
 import com.novelosoftware.expenses.exceptions.AccountServiceExceptions.AccountNotFoundException;
 import com.novelosoftware.expenses.exceptions.AccountServiceExceptions.AccountValidationException;
+import com.novelosoftware.expenses.exceptions.AccountServiceExceptions.UnauthorizedAccountException;
 import com.novelosoftware.expenses.repositories.AccountRepository;
 import com.novelosoftware.expenses.repositories.ExpenseRepository;
+import com.novelosoftware.expenses.security.CurrentUser;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -29,6 +32,8 @@ import static org.mockito.Mockito.*;
  * Test class for {@link AccountService.class}
  */
 class AccountServiceTest {
+
+    private static final String CALLER = "user-1";
 
     private static final Account VALID_ACCOUNT = new Account(
                 null,
@@ -65,7 +70,14 @@ class AccountServiceTest {
 
     private final AccountRepository repo = mock(AccountRepository.class);
     private final ExpenseRepository expenseRepo = mock(ExpenseRepository.class);
-    private final AccountService service = new AccountService(repo, expenseRepo);
+    private final CurrentUser currentUser = mock(CurrentUser.class);
+    private final AccountService service = new AccountService(repo, expenseRepo, currentUser);
+
+    @BeforeEach
+    void setUp() {
+        // Most tests act as the fixture owner; impersonation tests override this.
+        when(currentUser.requireSubject()).thenReturn(CALLER);
+    }
 
     @Test
     void getByUser_returnsPaginatedAccounts() {
@@ -84,7 +96,7 @@ class AccountServiceTest {
     void getById_returnsAccount() {
         when(repo.findById(1L)).thenReturn(Optional.of(anEntity(1L)));
 
-        var result = service.getById(1L);
+        var result = service.getById(1L, false);
 
         assertEquals(1L, result.accountId());
     }
@@ -125,7 +137,7 @@ class AccountServiceTest {
     void getById_throwsWhenNotFound() {
         when(repo.findById(99L)).thenReturn(Optional.empty());
 
-        assertThrows(AccountNotFoundException.class, () -> service.getById(99L));
+        assertThrows(AccountNotFoundException.class, () -> service.getById(99L, false));
     }
 
     @Test
@@ -217,9 +229,45 @@ class AccountServiceTest {
 
     @Test
     void delete_throwsWhenNotFound() {
-        when(repo.delete(99L)).thenReturn(false);
+        when(repo.findById(99L)).thenReturn(Optional.empty());
 
         assertThrows(AccountNotFoundException.class, () -> service.delete(99L));
+    }
+
+    @Test
+    void delete_notOwned_throwsAccountNotFound() {
+        when(currentUser.requireSubject()).thenReturn("intruder");
+        when(repo.findById(1L)).thenReturn(Optional.of(anEntity(1L))); // owned by user-1
+        assertThrows(AccountNotFoundException.class, () -> service.delete(1L));
+    }
+
+    @Test
+    void getById_notOwned_throwsAccountNotFound() {
+        when(currentUser.requireSubject()).thenReturn("intruder");
+        when(repo.findById(1L)).thenReturn(Optional.of(anEntity(1L))); // owned by user-1
+        assertThrows(AccountNotFoundException.class, () -> service.getById(1L, false));
+    }
+
+    @Test
+    void update_notOwned_throwsAccountNotFound() {
+        when(currentUser.requireSubject()).thenReturn("intruder");
+        when(repo.findById(1L)).thenReturn(Optional.of(anEntity(1L))); // stored row owned by user-1
+        // Body owner matches the caller, so impersonation passes; the stored-row check denies.
+        var request = new UpdateAccountRequest(VALID_ACCOUNT.toBuilder().createdBy("intruder").build());
+        assertThrows(AccountNotFoundException.class, () -> service.update(1L, request));
+    }
+
+    @Test
+    void create_impersonatingAnotherUser_throwsUnauthorized() {
+        when(currentUser.requireSubject()).thenReturn("intruder");
+        var request = new CreateAccountRequest(VALID_ACCOUNT); // createdBy user-1
+        assertThrows(UnauthorizedAccountException.class, () -> service.create(request));
+    }
+
+    @Test
+    void findByUser_requestedUserNotCaller_throwsAccountNotFound() {
+        assertThrows(AccountNotFoundException.class,
+            () -> service.findByUser("someone-else", 0, 20));
     }
 
     private AccountEntity anEntity(Long id) {
