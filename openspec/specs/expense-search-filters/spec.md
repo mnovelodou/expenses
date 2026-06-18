@@ -1,9 +1,9 @@
 # expense-search-filters
 
+## Purpose
+
 Optional filtering parameters for the `GET /expenses` endpoint, allowing results to be narrowed by category, subcategory, and account.
-
 ## Requirements
-
 ### Requirement: Authorization enforced before filter evaluation
 `GET /expenses` with optional filters SHALL apply authorization checks before any filter or pagination logic is executed. A request without a valid Bearer token SHALL return HTTP 401. A request with a valid token lacking the `read:expenses` scope SHALL return HTTP 403. Filter parameter validation (e.g., mutual exclusion of `category` and `subcategory`) is not reached for unauthorized requests.
 
@@ -16,7 +16,7 @@ Optional filtering parameters for the `GET /expenses` endpoint, allowing results
 - **THEN** the system returns HTTP 403 without executing any expense query logic
 
 ### Requirement: Optional filters on cursor-paginated expense list
-The `GET /expenses` endpoint SHALL accept three optional query parameters: `category` (string), `subcategory` (string), and `accountId` (integer). Since a subcategory belongs to exactly one category, `category` and `subcategory` are mutually exclusive — supplying both SHALL be rejected with HTTP 400. `accountId` MAY be combined with either `category` or `subcategory`. When a filter is absent, it SHALL NOT constrain the results. `userId` and date range remain mandatory as defined in the `list-expenses-by-user` spec.
+The `GET /expenses` endpoint SHALL accept three optional query parameters: `category` (string), `subcategory` (string), and `accountId` (integer). Since a subcategory belongs to exactly one category, `category` and `subcategory` are mutually exclusive — supplying both SHALL be rejected with HTTP 400. `accountId` MAY be combined with either `category` or `subcategory`. When a filter is absent, it SHALL NOT constrain the results. The date range remains mandatory as defined in the `list-expenses-by-user` spec; `user_id` is optional and defaults to the authenticated caller.
 
 #### Scenario: No optional filters — all expenses returned
 - **WHEN** a GET request is made with only `user_id` and date range
@@ -56,3 +56,4 @@ The cursor-paginated response SHALL work correctly when optional filters are pre
 #### Scenario: nextCursor is null on last filtered page
 - **WHEN** the current page contains the last expense matching the active filters
 - **THEN** the response contains `nextCursor: null`
+

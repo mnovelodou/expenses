@@ -1,7 +1,7 @@
-## ADDED Requirements
+## MODIFIED Requirements
 
 ### Requirement: Optional filters on cursor-paginated expense list
-The `GET /expenses` endpoint SHALL accept three optional query parameters: `category` (string), `subcategory` (string), and `accountId` (integer). Since a subcategory belongs to exactly one category, `category` and `subcategory` are mutually exclusive — supplying both SHALL be rejected with HTTP 400. `accountId` MAY be combined with either `category` or `subcategory`. When a filter is absent, it SHALL NOT constrain the results. `userId` and date range remain mandatory as defined in the `list-expenses-by-user` spec.
+The `GET /expenses` endpoint SHALL accept three optional query parameters: `category` (string), `subcategory` (string), and `accountId` (integer). Since a subcategory belongs to exactly one category, `category` and `subcategory` are mutually exclusive — supplying both SHALL be rejected with HTTP 400. `accountId` MAY be combined with either `category` or `subcategory`. When a filter is absent, it SHALL NOT constrain the results. The date range remains mandatory as defined in the `list-expenses-by-user` spec; `user_id` is optional and defaults to the authenticated caller.
 
 #### Scenario: No optional filters — all expenses returned
 - **WHEN** a GET request is made with only `user_id` and date range
@@ -30,14 +30,3 @@ The `GET /expenses` endpoint SHALL accept three optional query parameters: `cate
 #### Scenario: category and subcategory supplied together — rejected
 - **WHEN** a GET request includes both `category=Food` and `subcategory=Groceries`
 - **THEN** the system returns HTTP 400
-
-### Requirement: Cursor pagination works with filters
-The cursor-paginated response SHALL work correctly when optional filters are present. The cursor encodes only `(expense_date, expense_id)` and does NOT encode filter state. The caller SHALL supply the same filter parameters on every page request.
-
-#### Scenario: Subsequent page with filters preserved
-- **WHEN** a follow-up request includes a valid `cursor` and the same filter parameters as the first page
-- **THEN** the system returns the next page of filtered results in the correct order
-
-#### Scenario: nextCursor is null on last filtered page
-- **WHEN** the current page contains the last expense matching the active filters
-- **THEN** the response contains `nextCursor: null`
