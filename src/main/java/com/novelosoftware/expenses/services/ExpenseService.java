@@ -32,6 +32,10 @@ import static com.novelosoftware.expenses.exceptions.ExpenseServiceExceptions.*;
 @Service
 public class ExpenseService {
 
+    /** Monetary columns are NUMERIC(15,2): up to 13 integer digits and 2 fractional digits. */
+    private static final int MONETARY_SCALE = 2;
+    private static final int MONETARY_INTEGER_DIGITS = 13;
+
     private final ExpenseRepository repo;
     private final AccountService accountService;
     private final CurrentUser currentUser;
@@ -71,7 +75,8 @@ public class ExpenseService {
                 if (req == null || req.value() == null) {
                     throw createValidationException("Expense payload not provided");
                 }
-                expenseWriteValidations(req.value(), callerSub, true);
+                expenseWriteValidations(req.value(), callerSub);
+                requireAmount(req.value());
                 return defaultTransactionAmount(ExpenseMapper.toEntity(req.value()));
             })
             .toList();
@@ -92,7 +97,8 @@ public class ExpenseService {
         }
 
         Expense expense = request.value();
-        expenseWriteValidations(expense, currentUser.requireSubject(), true);
+        expenseWriteValidations(expense, currentUser.requireSubject());
+        requireAmount(expense);
 
         ExpenseEntity expenseEntity = defaultTransactionAmount(ExpenseMapper.toEntity(expense));
         ExpenseEntity createdEntity = repo.create(expenseEntity);
@@ -133,8 +139,8 @@ public class ExpenseService {
         String callerSub = currentUser.requireSubject();
         Expense expense = request.value();
         // amount and transactionAmount are partial on update: a null value preserves the stored
-        // value rather than failing validation, so amount is not required here.
-        expenseWriteValidations(expense, callerSub, false);
+        // value rather than failing validation, so requireAmount is intentionally not called here.
+        expenseWriteValidations(expense, callerSub);
 
         // Payload is validated; bring previous version and make sure the caller owns it.
         ExpenseEntity oldExpense = repo.get(id).orElseThrow(() -> createExpenseNotFoundException(id));
@@ -299,24 +305,25 @@ public class ExpenseService {
         return builder.build();
     }
 
+    /** Rejects a null {@code amount}. Called only on create/bulk, where amount is required. */
+    private void requireAmount(Expense expense) {
+        if (expense.amount() == null) {
+            throw createValidationException("amount cannot be null");
+        }
+    }
+
     /**
-     * Validates an expense write payload.
-     *
-     * @param amountRequired when {@code true} a null {@code amount} is rejected (create/bulk);
-     *                       when {@code false} a null {@code amount} is allowed (update treats it
-     *                       as "leave unchanged")
+     * Validates an expense write payload. {@code amount} presence is NOT checked here — on update it
+     * is optional (a null preserves the stored value); callers that require it invoke
+     * {@link #requireAmount(Expense)} themselves.
      */
-    private void expenseWriteValidations(Expense expense, String callerSub, boolean amountRequired) {
+    private void expenseWriteValidations(Expense expense, String callerSub) {
         if (expense.expenseDate() == null) {
             throw createValidationException("expenseDate cannot be null");
         }
 
         if (expense.accountId() == null) {
             throw createValidationException("accountId cannot be null");
-        }
-
-        if (amountRequired && expense.amount() == null) {
-            throw createValidationException("amount cannot be null");
         }
 
         // Reject values that exceed the NUMERIC(15,2) column so a precision overflow surfaces as a
@@ -345,10 +352,6 @@ public class ExpenseService {
         // someone else's account are both hidden as 404 (no existence disclosure).
         accountService.getById(expense.accountId(), false);
     }
-
-    /** Monetary columns are NUMERIC(15,2): up to 13 integer digits and 2 fractional digits. */
-    private static final int MONETARY_SCALE = 2;
-    private static final int MONETARY_INTEGER_DIGITS = 13;
 
     /**
      * Rejects a monetary value that would not fit the {@code NUMERIC(15,2)} column: more than two
