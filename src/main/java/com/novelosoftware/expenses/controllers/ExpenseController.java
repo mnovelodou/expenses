@@ -24,6 +24,7 @@ import com.novelosoftware.expenses.dto.UpdateExpenseRequest;
 import com.novelosoftware.expenses.dto.UpdateExpenseResponse;
 import com.novelosoftware.expenses.services.ExpenseService;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 /**
@@ -53,6 +54,7 @@ public class ExpenseController {
      * @param category    optional category filter; mutually exclusive with subcategory
      * @param subcategory optional subcategory filter; mutually exclusive with category
      * @param accountId   optional account filter
+     * @param transactionAmount optional exact-match filter on the original transaction amount
      * @return a page of expenses and an optional next-page cursor
      */
     @GetMapping
@@ -67,9 +69,10 @@ public class ExpenseController {
             @RequestParam(value = "cursor", required = false) String cursor,
             @RequestParam(value = "category", required = false) String category,
             @RequestParam(value = "subcategory", required = false) String subcategory,
-            @RequestParam(value = "account_id", required = false) Long accountId) {
+            @RequestParam(value = "account_id", required = false) Long accountId,
+            @RequestParam(value = "transaction_amount", required = false) BigDecimal transactionAmount) {
 
-        return expenseService.listByUser(userId, startDate, endDate, limit, cursor, category, subcategory, accountId);
+        return expenseService.listByUser(userId, startDate, endDate, limit, cursor, category, subcategory, accountId, transactionAmount);
     }
 
     /**

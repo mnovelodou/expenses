@@ -800,4 +800,129 @@ class ExpenseControllerIT extends BaseIT {
             .andExpect(jsonPath("$.code").value("NOT_FOUND"))
             .andExpect(jsonPath("$.message").value("Account with ID 999999 not found."));
     }
+
+    // -------------------------------------------------------------------------
+    // transactionAmount: split-and-search, creation default, partial update
+    // -------------------------------------------------------------------------
+
+    @Test
+    void create_withoutTransactionAmount_defaultsToAmount() throws Exception {
+        mockMvc.perform(post("/expenses")
+                .with(fullScopeJwtAs(USER))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    { "value": { "expenseDate": "2026-05-27", "accountId": %d,
+                      "amount": 42.50, "description": "Solo expense",
+                      "subCategory": "RESTAURANT", "createdBy": "user-expense-it" } }
+                """.formatted(firstAccountId)))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.value.amount").value(42.50))
+            .andExpect(jsonPath("$.value.transactionAmount").value(42.50));
+    }
+
+    @Test
+    void splitTransaction_searchByTransactionAmount_returnsOnlyMatchingLines() throws Exception {
+        // One $100 transaction split into two lines, both carrying transactionAmount = 100.00.
+        createExpenseWithTransactionAmount(firstAccountId, USER, "2026-05-10", "60.00", "100.00");
+        createExpenseWithTransactionAmount(firstAccountId, USER, "2026-05-12", "40.00", "100.00");
+        // An unrelated expense with a different transaction amount must be excluded.
+        createExpenseWithTransactionAmount(firstAccountId, USER, "2026-05-15", "25.00", "25.00");
+
+        mockMvc.perform(get("/expenses")
+                .with(fullScopeJwtAs(USER))
+                .param("user_id", USER)
+                .param("start_date", "2026-05-01")
+                .param("end_date", "2026-05-31")
+                .param("transaction_amount", "100.00"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content.length()").value(2))
+            .andExpect(jsonPath("$.content[0].expenseDate").value("2026-05-12"))
+            .andExpect(jsonPath("$.content[0].amount").value(40.00))
+            .andExpect(jsonPath("$.content[0].transactionAmount").value(100.00))
+            .andExpect(jsonPath("$.content[1].expenseDate").value("2026-05-10"))
+            .andExpect(jsonPath("$.content[1].amount").value(60.00))
+            .andExpect(jsonPath("$.content[1].transactionAmount").value(100.00));
+    }
+
+    @Test
+    void splitTransaction_searchByTransactionAmount_cursorPaginationIntact() throws Exception {
+        createExpenseWithTransactionAmount(firstAccountId, USER, "2026-05-10", "60.00", "100.00");
+        createExpenseWithTransactionAmount(firstAccountId, USER, "2026-05-12", "40.00", "100.00");
+
+        // First page with limit 1: newest matching line, plus a nextCursor.
+        String firstPage = mockMvc.perform(get("/expenses")
+                .with(fullScopeJwtAs(USER))
+                .param("user_id", USER)
+                .param("start_date", "2026-05-01")
+                .param("end_date", "2026-05-31")
+                .param("transaction_amount", "100.00")
+                .param("limit", "1"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content.length()").value(1))
+            .andExpect(jsonPath("$.content[0].expenseDate").value("2026-05-12"))
+            .andExpect(jsonPath("$.nextCursor").isNotEmpty())
+            .andReturn().getResponse().getContentAsString();
+
+        String cursor = objectMapper.readTree(firstPage).path("nextCursor").asText();
+
+        // Second page: the older matching line, with the filter resupplied alongside the cursor.
+        mockMvc.perform(get("/expenses")
+                .with(fullScopeJwtAs(USER))
+                .param("user_id", USER)
+                .param("start_date", "2026-05-01")
+                .param("end_date", "2026-05-31")
+                .param("transaction_amount", "100.00")
+                .param("limit", "1")
+                .param("cursor", cursor))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content.length()").value(1))
+            .andExpect(jsonPath("$.content[0].expenseDate").value("2026-05-10"))
+            .andExpect(jsonPath("$.content[0].transactionAmount").value(100.00));
+    }
+
+    @Test
+    void update_omittingTransactionAmount_preservesStoredValue() throws Exception {
+        long expenseId = createExpenseWithTransactionAmount(firstAccountId, USER, "2026-05-10", "60.00", "100.00");
+
+        // Change the amount but omit transactionAmount: stored 100.00 must be preserved (not re-defaulted to 70.00).
+        mockMvc.perform(put("/expenses/" + expenseId)
+                .with(fullScopeJwtAs(USER))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    { "value": { "expenseId": %d, "expenseDate": "2026-05-10", "accountId": %d,
+                      "amount": 70.00, "description": "Test expense",
+                      "subCategory": "RESTAURANT", "createdBy": "%s" } }
+                """.formatted(expenseId, firstAccountId, USER)))
+            .andExpect(status().is2xxSuccessful())
+            .andExpect(jsonPath("$.value.amount").value(70.00))
+            .andExpect(jsonPath("$.value.transactionAmount").value(100.00));
+    }
+
+    @Test
+    void create_transactionAmountTooPrecise_returns400() throws Exception {
+        mockMvc.perform(post("/expenses")
+                .with(fullScopeJwtAs(USER))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    { "value": { "expenseDate": "2026-05-27", "accountId": %d,
+                      "amount": 42.50, "transactionAmount": 100.123, "description": "Too precise",
+                      "subCategory": "RESTAURANT", "createdBy": "user-expense-it" } }
+                """.formatted(firstAccountId)))
+            .andExpect(status().isBadRequest());
+    }
+
+    private long createExpenseWithTransactionAmount(long accountId, String userId, String date,
+                                                    String amount, String transactionAmount) throws Exception {
+        String response = mockMvc.perform(post("/expenses")
+                .with(fullScopeJwtAs(userId))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    { "value": { "expenseDate": "%s", "accountId": %d, "amount": %s,
+                      "transactionAmount": %s, "description": "Split line",
+                      "subCategory": "RESTAURANT", "createdBy": "%s" } }
+                    """.formatted(date, accountId, amount, transactionAmount, userId)))
+            .andExpect(status().isCreated())
+            .andReturn().getResponse().getContentAsString();
+        return objectMapper.readTree(response).path("value").path("expenseId").asLong();
+    }
 }

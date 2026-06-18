@@ -145,7 +145,7 @@ class AccountControllerTest {
     @Test
     void listExpenses_accountExists_returns200WithPage() throws Exception {
         Expense expense = new Expense(10L, LocalDate.of(2026, 5, 10), 1L,
-            new BigDecimal("42.50"), "Tacos", SubCategory.RESTAURANT, "user-1");
+            new BigDecimal("42.50"), new BigDecimal("42.50"), "Tacos", SubCategory.RESTAURANT, "user-1");
         CursorPageResponse<Expense> page = new CursorPageResponse<>(List.of(expense), null, 20);
 
         // Ownership is enforced inside listByAccount, so the controller just delegates.

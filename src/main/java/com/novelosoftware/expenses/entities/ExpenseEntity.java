@@ -16,6 +16,8 @@ public record ExpenseEntity(
     Long accountId,
     /** Amount spent. */
     BigDecimal amount,
+    /** Amount of the original (pre-split) transaction this line was derived from. */
+    BigDecimal transactionAmount,
     /** Description of what the expense was for. */
     String description,
     /** Top-level category (e.g. Food, Transport). */
@@ -35,6 +37,7 @@ public record ExpenseEntity(
             .expenseDate(expenseDate)
             .accountId(accountId)
             .amount(amount)
+            .transactionAmount(transactionAmount)
             .description(description)
             .category(category)
             .subcategory(subcategory)
@@ -46,6 +49,7 @@ public record ExpenseEntity(
         private LocalDate expenseDate;
         private Long accountId;
         private BigDecimal amount;
+        private BigDecimal transactionAmount;
         private String description;
         private String category;
         private String subcategory;
@@ -57,13 +61,14 @@ public record ExpenseEntity(
         public Builder expenseDate(LocalDate expenseDate) { this.expenseDate = expenseDate; return this; }
         public Builder accountId(Long accountId) { this.accountId = accountId; return this; }
         public Builder amount(BigDecimal amount) { this.amount = amount; return this; }
+        public Builder transactionAmount(BigDecimal transactionAmount) { this.transactionAmount = transactionAmount; return this; }
         public Builder description(String description) { this.description = description; return this; }
         public Builder category(String category) { this.category = category; return this; }
         public Builder subcategory(String subcategory) { this.subcategory = subcategory; return this; }
         public Builder createdBy(String createdBy) { this.createdBy = createdBy; return this; }
 
         public ExpenseEntity build() {
-            return new ExpenseEntity(expenseId, expenseDate, accountId, amount, description, category, subcategory, createdBy);
+            return new ExpenseEntity(expenseId, expenseDate, accountId, amount, transactionAmount, description, category, subcategory, createdBy);
         }
     }
 }

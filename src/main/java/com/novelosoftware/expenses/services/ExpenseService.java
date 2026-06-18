@@ -19,6 +19,7 @@ import com.novelosoftware.expenses.util.DateWindowResolver;
 import com.novelosoftware.expenses.util.DateWindow;
 import com.novelosoftware.expenses.util.ExpenseCursor;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
@@ -30,6 +31,10 @@ import static com.novelosoftware.expenses.exceptions.ExpenseServiceExceptions.*;
  */
 @Service
 public class ExpenseService {
+
+    /** Monetary columns are NUMERIC(15,2): up to 13 integer digits and 2 fractional digits. */
+    private static final int MONETARY_SCALE = 2;
+    private static final int MONETARY_INTEGER_DIGITS = 13;
 
     private final ExpenseRepository repo;
     private final AccountService accountService;
@@ -71,7 +76,8 @@ public class ExpenseService {
                     throw createValidationException("Expense payload not provided");
                 }
                 expenseWriteValidations(req.value(), callerSub);
-                return ExpenseMapper.toEntity(req.value());
+                requireAmount(req.value());
+                return defaultTransactionAmount(ExpenseMapper.toEntity(req.value()));
             })
             .toList();
 
@@ -92,8 +98,9 @@ public class ExpenseService {
 
         Expense expense = request.value();
         expenseWriteValidations(expense, currentUser.requireSubject());
+        requireAmount(expense);
 
-        ExpenseEntity expenseEntity = ExpenseMapper.toEntity(expense);
+        ExpenseEntity expenseEntity = defaultTransactionAmount(ExpenseMapper.toEntity(expense));
         ExpenseEntity createdEntity = repo.create(expenseEntity);
         return new CreateExpenseResponse(ExpenseMapper.toDto(createdEntity));
     }
@@ -131,6 +138,8 @@ public class ExpenseService {
 
         String callerSub = currentUser.requireSubject();
         Expense expense = request.value();
+        // amount and transactionAmount are partial on update: a null value preserves the stored
+        // value rather than failing validation, so requireAmount is intentionally not called here.
         expenseWriteValidations(expense, callerSub);
 
         // Payload is validated; bring previous version and make sure the caller owns it.
@@ -141,7 +150,9 @@ public class ExpenseService {
             throw createExpenseNotFoundException(id);
         }
 
-        ExpenseEntity newExpense = ExpenseMapper.toEntity(expense);
+        // Preserve the stored amount / transactionAmount when the request omits them. The
+        // create-time "null transactionAmount defaults to amount" rule does NOT apply on update.
+        ExpenseEntity newExpense = mergeUpdateValues(ExpenseMapper.toEntity(expense), oldExpense);
         ExpenseEntity updatedEntity = repo.update(id, newExpense).orElseThrow(() -> createExpenseNotFoundException(id));
         return new UpdateExpenseResponse(ExpenseMapper.toDto(updatedEntity));
     }
@@ -168,6 +179,7 @@ public class ExpenseService {
      * @param category    optional category filter; mutually exclusive with subcategory
      * @param subcategory optional subcategory filter; mutually exclusive with category
      * @param accountId   optional account filter
+     * @param transactionAmount optional exact-match filter on the original transaction amount
      * @return a page of expenses with an optional next-page cursor
      */
     public CursorPageResponse<Expense> listByUser(String userId,
@@ -177,7 +189,8 @@ public class ExpenseService {
                                                    String cursorToken,
                                                    String category,
                                                    String subcategory,
-                                                   Long accountId) {
+                                                   Long accountId,
+                                                   BigDecimal transactionAmount) {
         // The requested user is optional and defaults to the caller. When supplied it must
         // match the caller; a mismatch is hidden as a 404 (ADMIN cross-user access is deferred).
         String callerSub = currentUser.requireSubject();
@@ -186,7 +199,7 @@ public class ExpenseService {
             throw createExpenseNotFoundException("No expenses found for the requested user");
         }
 
-        return listForOwner(requestedUser, startDate, endDate, limit, cursorToken, category, subcategory, accountId);
+        return listForOwner(requestedUser, startDate, endDate, limit, cursorToken, category, subcategory, accountId, transactionAmount);
     }
 
     /**
@@ -205,7 +218,8 @@ public class ExpenseService {
                                                       String subcategory) {
         // Ownership-checked: a non-owned or missing account is hidden as 404.
         String owner = accountService.getById(accountId, false).createdBy();
-        return listForOwner(owner, startDate, endDate, limit, cursorToken, category, subcategory, accountId);
+        // The transaction_amount filter is exposed only on GET /expenses, so account listing passes null.
+        return listForOwner(owner, startDate, endDate, limit, cursorToken, category, subcategory, accountId, null);
     }
 
     /**
@@ -219,7 +233,8 @@ public class ExpenseService {
                                                      String cursorToken,
                                                      String category,
                                                      String subcategory,
-                                                     Long accountId) {
+                                                     Long accountId,
+                                                     BigDecimal transactionAmount) {
         // --- Validate mutually exclusive filters ---
         if (category != null && subcategory != null) {
             throw createValidationException("category and subcategory are mutually exclusive; provide at most one");
@@ -249,7 +264,7 @@ public class ExpenseService {
         // --- Fetch and map ---
         List<ExpenseEntity> entities = repo.findByFiltersCursor(
             userId, window.startDate(), window.endDate(),
-            category, subcategory, accountId,
+            category, subcategory, accountId, transactionAmount,
             resolvedLimit, cursor);
         List<Expense> expenses = entities.stream().map(ExpenseMapper::toDto).toList();
 
@@ -263,6 +278,45 @@ public class ExpenseService {
         return new CursorPageResponse<>(expenses, nextCursor, resolvedLimit);
     }
 
+    /**
+     * Creation-only default: when the caller omits {@code transactionAmount}, set it to the line's
+     * own {@code amount}. Never derived from splits or amount edits.
+     */
+    private static ExpenseEntity defaultTransactionAmount(ExpenseEntity entity) {
+        if (entity.transactionAmount() != null) {
+            return entity;
+        }
+        return entity.toBuilder().transactionAmount(entity.amount()).build();
+    }
+
+    /**
+     * Merges a partial update onto the stored entity: a null {@code amount} or
+     * {@code transactionAmount} in the incoming payload preserves the existing stored value.
+     * Unlike creation, a null {@code transactionAmount} is NOT re-defaulted to {@code amount}.
+     */
+    private static ExpenseEntity mergeUpdateValues(ExpenseEntity incoming, ExpenseEntity existing) {
+        var builder = incoming.toBuilder();
+        if (incoming.amount() == null) {
+            builder.amount(existing.amount());
+        }
+        if (incoming.transactionAmount() == null) {
+            builder.transactionAmount(existing.transactionAmount());
+        }
+        return builder.build();
+    }
+
+    /** Rejects a null {@code amount}. Called only on create/bulk, where amount is required. */
+    private void requireAmount(Expense expense) {
+        if (expense.amount() == null) {
+            throw createValidationException("amount cannot be null");
+        }
+    }
+
+    /**
+     * Validates an expense write payload. {@code amount} presence is NOT checked here — on update it
+     * is optional (a null preserves the stored value); callers that require it invoke
+     * {@link #requireAmount(Expense)} themselves.
+     */
     private void expenseWriteValidations(Expense expense, String callerSub) {
         if (expense.expenseDate() == null) {
             throw createValidationException("expenseDate cannot be null");
@@ -272,9 +326,10 @@ public class ExpenseService {
             throw createValidationException("accountId cannot be null");
         }
 
-        if (expense.amount() == null) {
-            throw createValidationException("amount cannot be null");
-        }
+        // Reject values that exceed the NUMERIC(15,2) column so a precision overflow surfaces as a
+        // 400 rather than a database 500, and so a too-precise value is not silently rounded on write.
+        validateMonetaryScale(expense.amount(), "amount");
+        validateMonetaryScale(expense.transactionAmount(), "transactionAmount");
 
         if (expense.description() == null || expense.description().isEmpty()) {
             throw createValidationException("description cannot be null");
@@ -296,5 +351,23 @@ public class ExpenseService {
         // Resolve the account through the ownership-checked accessor so a missing account and
         // someone else's account are both hidden as 404 (no existence disclosure).
         accountService.getById(expense.accountId(), false);
+    }
+
+    /**
+     * Rejects a monetary value that would not fit the {@code NUMERIC(15,2)} column: more than two
+     * fractional digits (which the database would silently round) or more than thirteen integer
+     * digits (which the database would reject with a server error). Null is allowed and skipped.
+     */
+    private void validateMonetaryScale(BigDecimal value, String field) {
+        if (value == null) {
+            return;
+        }
+        if (value.scale() > MONETARY_SCALE) {
+            throw createValidationException(field + " must have at most " + MONETARY_SCALE + " decimal places");
+        }
+        // precision() - scale() is the number of integer digits (an upper bound when scale < 0).
+        if (value.precision() - value.scale() > MONETARY_INTEGER_DIGITS) {
+            throw createValidationException(field + " must have at most " + MONETARY_INTEGER_DIGITS + " integer digits");
+        }
     }
 }

@@ -30,6 +30,7 @@ public class ExpenseRepository {
         rs.getObject("expense_date", LocalDate.class),
         rs.getLong("account_id"),
         rs.getBigDecimal("amount"),
+        rs.getBigDecimal("transaction_amount"),
         rs.getString("description"),
         rs.getString("category"),
         rs.getString("subcategory"),
@@ -57,12 +58,12 @@ public class ExpenseRepository {
      */
     public ExpenseEntity create(ExpenseEntity entity) {
         var sql = """
-            INSERT INTO expenses (expense_date, account_id, amount, description, category, subcategory, created_by)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO expenses (expense_date, account_id, amount, transaction_amount, description, category, subcategory, created_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             RETURNING *
             """;
         return jdbc.queryForObject(sql, MAPPER,
-            entity.expenseDate(), entity.accountId(), entity.amount(),
+            entity.expenseDate(), entity.accountId(), entity.amount(), entity.transactionAmount(),
             entity.description(), entity.category(), entity.subcategory(), entity.createdBy());
     }
 
@@ -80,16 +81,17 @@ public class ExpenseRepository {
     public List<ExpenseEntity> bulkInsert(List<ExpenseEntity> entities) {
         var sql = new StringBuilder(
             "WITH inserted AS (INSERT INTO expenses " +
-            "(expense_date, account_id, amount, description, category, subcategory, created_by) VALUES ");
+            "(expense_date, account_id, amount, transaction_amount, description, category, subcategory, created_by) VALUES ");
 
         var params = new ArrayList<>();
         for (int i = 0; i < entities.size(); i++) {
             if (i > 0) sql.append(", ");
-            sql.append("(?, ?, ?, ?, ?, ?, ?)");
+            sql.append("(?, ?, ?, ?, ?, ?, ?, ?)");
             ExpenseEntity e = entities.get(i);
             params.add(e.expenseDate());
             params.add(e.accountId());
             params.add(e.amount());
+            params.add(e.transactionAmount());
             params.add(e.description());
             params.add(e.category());
             params.add(e.subcategory());
@@ -112,13 +114,13 @@ public class ExpenseRepository {
     public Optional<ExpenseEntity> update(Long id, ExpenseEntity entity) {
         var sql = """
             UPDATE expenses
-            SET expense_date = ?, account_id = ?, amount = ?,
+            SET expense_date = ?, account_id = ?, amount = ?, transaction_amount = ?,
                 description = ?, category = ?, subcategory = ?
             WHERE expense_id = ?
             RETURNING *
             """;
         var results = jdbc.query(sql, MAPPER,
-            entity.expenseDate(), entity.accountId(), entity.amount(),
+            entity.expenseDate(), entity.accountId(), entity.amount(), entity.transactionAmount(),
             entity.description(), entity.category(), entity.subcategory(), id);
         return results.stream().findFirst();
     }
@@ -156,6 +158,7 @@ public class ExpenseRepository {
      * @param category    optional category filter; mutually exclusive with subcategory
      * @param subcategory optional subcategory filter; mutually exclusive with category
      * @param accountId   optional account filter
+     * @param transactionAmount optional exact-match filter on the original transaction amount
      * @param limit       maximum number of results to return
      * @param cursor      optional cursor from the previous page; {@code null} for the first page
      * @return list of expense entities for the requested page
@@ -163,6 +166,7 @@ public class ExpenseRepository {
     public List<ExpenseEntity> findByFiltersCursor(
             String userId, LocalDate startDate, LocalDate endDate,
             String category, String subcategory, Long accountId,
+            BigDecimal transactionAmount,
             int limit,
             ExpenseCursor.DecodedCursor cursor) {
 
@@ -186,6 +190,10 @@ public class ExpenseRepository {
         if (accountId != null) {
             sql.append("AND account_id = ? ");
             params.add(accountId);
+        }
+        if (transactionAmount != null) {
+            sql.append("AND transaction_amount = ? ");
+            params.add(transactionAmount);
         }
         if (cursor != null) {
             sql.append("AND (expense_date < ? OR (expense_date = ? AND expense_id < ?)) ");

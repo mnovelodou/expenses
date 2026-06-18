@@ -31,7 +31,7 @@ class ExpenseRepositoryTest {
     void create_insertsAndReturnsEntity() {
         var entity = anEntity(null);
         when(jdbc.queryForObject(anyString(), any(RowMapper.class),
-            any(), any(), any(), any(), any(), any(), any()))
+            any(), any(), any(), any(), any(), any(), any(), any()))
             .thenReturn(anEntity(1L));
 
         var result = repo.create(entity);
@@ -39,13 +39,13 @@ class ExpenseRepositoryTest {
         assertNotNull(result);
         assertEquals(1L, result.expenseId());
         verify(jdbc).queryForObject(anyString(), any(RowMapper.class),
-            any(), any(), any(), any(), any(), any(), any());
+            any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
     void update_returnsUpdatedEntity() {
         when(jdbc.query(anyString(), any(RowMapper.class),
-            any(), any(), any(), any(), any(), any(), eq(1L)))
+            any(), any(), any(), any(), any(), any(), any(), eq(1L)))
             .thenReturn(List.of(anEntity(1L)));
 
         Optional<ExpenseEntity> result = repo.update(1L, anEntity(1L));
@@ -57,7 +57,7 @@ class ExpenseRepositoryTest {
     @Test
     void update_returnsEmptyWhenNotFound() {
         when(jdbc.query(anyString(), any(RowMapper.class),
-            any(), any(), any(), any(), any(), any(), eq(99L)))
+            any(), any(), any(), any(), any(), any(), any(), eq(99L)))
             .thenReturn(List.of());
 
         Optional<ExpenseEntity> result = repo.update(99L, anEntity(null));
@@ -110,7 +110,7 @@ class ExpenseRepositoryTest {
         when(jdbc.query(anyString(), any(RowMapper.class), eq("user-1"), eq(START), eq(END), eq(20)))
             .thenReturn(List.of(anEntity(1L)));
 
-        var result = repo.findByFiltersCursor("user-1", START, END, null, null, null, 20, null);
+        var result = repo.findByFiltersCursor("user-1", START, END, null, null, null, null, 20, null);
 
         assertEquals(1, result.size());
         assertEquals(1L, result.get(0).expenseId());
@@ -128,7 +128,7 @@ class ExpenseRepositoryTest {
             eq(20)))
             .thenReturn(List.of(anEntity(3L)));
 
-        var result = repo.findByFiltersCursor("user-1", START, END, null, null, null, 20, cursor);
+        var result = repo.findByFiltersCursor("user-1", START, END, null, null, null, null, 20, cursor);
 
         assertEquals(1, result.size());
         assertEquals(3L, result.get(0).expenseId());
@@ -144,7 +144,7 @@ class ExpenseRepositoryTest {
             eq("user-1"), eq(START), eq(END), eq("Food"), eq(20)))
             .thenReturn(List.of(anEntity(1L)));
 
-        var result = repo.findByFiltersCursor("user-1", START, END, "Food", null, null, 20, null);
+        var result = repo.findByFiltersCursor("user-1", START, END, "Food", null, null, null, 20, null);
 
         assertEquals(1, result.size());
     }
@@ -155,7 +155,7 @@ class ExpenseRepositoryTest {
             eq("user-1"), eq(START), eq(END), eq("Groceries"), eq(20)))
             .thenReturn(List.of(anEntity(1L)));
 
-        var result = repo.findByFiltersCursor("user-1", START, END, null, "Groceries", null, 20, null);
+        var result = repo.findByFiltersCursor("user-1", START, END, null, "Groceries", null, null, 20, null);
 
         assertEquals(1, result.size());
     }
@@ -166,7 +166,7 @@ class ExpenseRepositoryTest {
             eq("user-1"), eq(START), eq(END), eq(3L), eq(20)))
             .thenReturn(List.of(anEntity(1L)));
 
-        var result = repo.findByFiltersCursor("user-1", START, END, null, null, 3L, 20, null);
+        var result = repo.findByFiltersCursor("user-1", START, END, null, null, 3L, null, 20, null);
 
         assertEquals(1, result.size());
     }
@@ -181,7 +181,7 @@ class ExpenseRepositoryTest {
             eq("user-1"), eq(START), eq(END), eq("Food"), eq(3L), eq(20)))
             .thenReturn(List.of(anEntity(1L)));
 
-        var result = repo.findByFiltersCursor("user-1", START, END, "Food", null, 3L, 20, null);
+        var result = repo.findByFiltersCursor("user-1", START, END, "Food", null, 3L, null, 20, null);
 
         assertEquals(1, result.size());
     }
@@ -191,9 +191,33 @@ class ExpenseRepositoryTest {
         when(jdbc.query(anyString(), any(RowMapper.class), any()))
             .thenReturn(List.of());
 
-        var result = repo.findByFiltersCursor("user-1", START, END, null, null, null, 20, null);
+        var result = repo.findByFiltersCursor("user-1", START, END, null, null, null, null, 20, null);
 
         assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void findByFiltersCursor_transactionAmountFilter_passedAsParam() {
+        var txAmount = new BigDecimal("100.00");
+        when(jdbc.query(anyString(), any(RowMapper.class),
+            eq("user-1"), eq(START), eq(END), eq(txAmount), eq(20)))
+            .thenReturn(List.of(anEntity(1L)));
+
+        var result = repo.findByFiltersCursor("user-1", START, END, null, null, null, txAmount, 20, null);
+
+        assertEquals(1, result.size());
+    }
+
+    @Test
+    void findByFiltersCursor_transactionAmountAndAccountId_bothPassedAsParams() {
+        var txAmount = new BigDecimal("100.00");
+        when(jdbc.query(anyString(), any(RowMapper.class),
+            eq("user-1"), eq(START), eq(END), eq(3L), eq(txAmount), eq(20)))
+            .thenReturn(List.of(anEntity(1L)));
+
+        var result = repo.findByFiltersCursor("user-1", START, END, null, null, 3L, txAmount, 20, null);
+
+        assertEquals(1, result.size());
     }
 
     // -------------------------------------------------------------------------
@@ -202,6 +226,6 @@ class ExpenseRepositoryTest {
 
     private ExpenseEntity anEntity(Long id) {
         return new ExpenseEntity(id, LocalDate.of(2026, 1, 15), 1L,
-            new BigDecimal("50.00"), "Lunch", "Food", "Restaurants", "user-1");
+            new BigDecimal("50.00"), new BigDecimal("50.00"), "Lunch", "Food", "Restaurants", "user-1");
     }
 }
