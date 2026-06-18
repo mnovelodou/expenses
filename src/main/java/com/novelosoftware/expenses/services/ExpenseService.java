@@ -319,6 +319,11 @@ public class ExpenseService {
             throw createValidationException("amount cannot be null");
         }
 
+        // Reject values that exceed the NUMERIC(15,2) column so a precision overflow surfaces as a
+        // 400 rather than a database 500, and so a too-precise value is not silently rounded on write.
+        validateMonetaryScale(expense.amount(), "amount");
+        validateMonetaryScale(expense.transactionAmount(), "transactionAmount");
+
         if (expense.description() == null || expense.description().isEmpty()) {
             throw createValidationException("description cannot be null");
         }
@@ -339,5 +344,27 @@ public class ExpenseService {
         // Resolve the account through the ownership-checked accessor so a missing account and
         // someone else's account are both hidden as 404 (no existence disclosure).
         accountService.getById(expense.accountId(), false);
+    }
+
+    /** Monetary columns are NUMERIC(15,2): up to 13 integer digits and 2 fractional digits. */
+    private static final int MONETARY_SCALE = 2;
+    private static final int MONETARY_INTEGER_DIGITS = 13;
+
+    /**
+     * Rejects a monetary value that would not fit the {@code NUMERIC(15,2)} column: more than two
+     * fractional digits (which the database would silently round) or more than thirteen integer
+     * digits (which the database would reject with a server error). Null is allowed and skipped.
+     */
+    private void validateMonetaryScale(BigDecimal value, String field) {
+        if (value == null) {
+            return;
+        }
+        if (value.scale() > MONETARY_SCALE) {
+            throw createValidationException(field + " must have at most " + MONETARY_SCALE + " decimal places");
+        }
+        // precision() - scale() is the number of integer digits (an upper bound when scale < 0).
+        if (value.precision() - value.scale() > MONETARY_INTEGER_DIGITS) {
+            throw createValidationException(field + " must have at most " + MONETARY_INTEGER_DIGITS + " integer digits");
+        }
     }
 }

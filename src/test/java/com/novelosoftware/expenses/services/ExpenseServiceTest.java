@@ -294,6 +294,31 @@ public class ExpenseServiceTest {
     }
 
     @Test
+    void create_transactionAmountTooManyDecimals_throws400() {
+        Expense bad = VALID_NEW_EXPENSE.toBuilder().transactionAmount(new BigDecimal("100.123")).build();
+        assertThrows(ExpenseValidationException.class,
+            () -> service.create(new CreateExpenseRequest(bad)));
+    }
+
+    @Test
+    void create_amountTooManyIntegerDigits_throws400() {
+        // 14 integer digits exceeds NUMERIC(15,2)'s 13-digit integer capacity.
+        Expense bad = VALID_NEW_EXPENSE.toBuilder()
+            .amount(new BigDecimal("12345678901234"))
+            .transactionAmount(new BigDecimal("12345678901234"))
+            .build();
+        assertThrows(ExpenseValidationException.class,
+            () -> service.create(new CreateExpenseRequest(bad)));
+    }
+
+    @Test
+    void update_transactionAmountTooManyDecimals_throws400() {
+        Expense bad = UPDATED_EXPENSE.toBuilder().transactionAmount(new BigDecimal("100.123")).build();
+        assertThrows(ExpenseValidationException.class,
+            () -> service.update(EXPENSE_ID, new UpdateExpenseRequest(bad)));
+    }
+
+    @Test
     void update_nullAmount_preservesStoredAmount() {
         // Request omits amount; stored amount (1000.00) must be preserved, no validation error.
         Expense req = UPDATED_EXPENSE.toBuilder().amount(null).build();

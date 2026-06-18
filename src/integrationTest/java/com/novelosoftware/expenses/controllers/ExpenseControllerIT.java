@@ -898,6 +898,19 @@ class ExpenseControllerIT extends BaseIT {
             .andExpect(jsonPath("$.value.transactionAmount").value(100.00));
     }
 
+    @Test
+    void create_transactionAmountTooPrecise_returns400() throws Exception {
+        mockMvc.perform(post("/expenses")
+                .with(fullScopeJwtAs(USER))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    { "value": { "expenseDate": "2026-05-27", "accountId": %d,
+                      "amount": 42.50, "transactionAmount": 100.123, "description": "Too precise",
+                      "subCategory": "RESTAURANT", "createdBy": "user-expense-it" } }
+                """.formatted(firstAccountId)))
+            .andExpect(status().isBadRequest());
+    }
+
     private long createExpenseWithTransactionAmount(long accountId, String userId, String date,
                                                     String amount, String transactionAmount) throws Exception {
         String response = mockMvc.perform(post("/expenses")
