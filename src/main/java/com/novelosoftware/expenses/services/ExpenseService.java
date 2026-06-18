@@ -19,6 +19,7 @@ import com.novelosoftware.expenses.util.DateWindowResolver;
 import com.novelosoftware.expenses.util.DateWindow;
 import com.novelosoftware.expenses.util.ExpenseCursor;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
@@ -70,8 +71,8 @@ public class ExpenseService {
                 if (req == null || req.value() == null) {
                     throw createValidationException("Expense payload not provided");
                 }
-                expenseWriteValidations(req.value(), callerSub);
-                return ExpenseMapper.toEntity(req.value());
+                expenseWriteValidations(req.value(), callerSub, true);
+                return defaultTransactionAmount(ExpenseMapper.toEntity(req.value()));
             })
             .toList();
 
@@ -91,9 +92,9 @@ public class ExpenseService {
         }
 
         Expense expense = request.value();
-        expenseWriteValidations(expense, currentUser.requireSubject());
+        expenseWriteValidations(expense, currentUser.requireSubject(), true);
 
-        ExpenseEntity expenseEntity = ExpenseMapper.toEntity(expense);
+        ExpenseEntity expenseEntity = defaultTransactionAmount(ExpenseMapper.toEntity(expense));
         ExpenseEntity createdEntity = repo.create(expenseEntity);
         return new CreateExpenseResponse(ExpenseMapper.toDto(createdEntity));
     }
@@ -131,7 +132,9 @@ public class ExpenseService {
 
         String callerSub = currentUser.requireSubject();
         Expense expense = request.value();
-        expenseWriteValidations(expense, callerSub);
+        // amount and transactionAmount are partial on update: a null value preserves the stored
+        // value rather than failing validation, so amount is not required here.
+        expenseWriteValidations(expense, callerSub, false);
 
         // Payload is validated; bring previous version and make sure the caller owns it.
         ExpenseEntity oldExpense = repo.get(id).orElseThrow(() -> createExpenseNotFoundException(id));
@@ -141,7 +144,9 @@ public class ExpenseService {
             throw createExpenseNotFoundException(id);
         }
 
-        ExpenseEntity newExpense = ExpenseMapper.toEntity(expense);
+        // Preserve the stored amount / transactionAmount when the request omits them. The
+        // create-time "null transactionAmount defaults to amount" rule does NOT apply on update.
+        ExpenseEntity newExpense = mergeUpdateValues(ExpenseMapper.toEntity(expense), oldExpense);
         ExpenseEntity updatedEntity = repo.update(id, newExpense).orElseThrow(() -> createExpenseNotFoundException(id));
         return new UpdateExpenseResponse(ExpenseMapper.toDto(updatedEntity));
     }
@@ -168,6 +173,7 @@ public class ExpenseService {
      * @param category    optional category filter; mutually exclusive with subcategory
      * @param subcategory optional subcategory filter; mutually exclusive with category
      * @param accountId   optional account filter
+     * @param transactionAmount optional exact-match filter on the original transaction amount
      * @return a page of expenses with an optional next-page cursor
      */
     public CursorPageResponse<Expense> listByUser(String userId,
@@ -177,7 +183,8 @@ public class ExpenseService {
                                                    String cursorToken,
                                                    String category,
                                                    String subcategory,
-                                                   Long accountId) {
+                                                   Long accountId,
+                                                   BigDecimal transactionAmount) {
         // The requested user is optional and defaults to the caller. When supplied it must
         // match the caller; a mismatch is hidden as a 404 (ADMIN cross-user access is deferred).
         String callerSub = currentUser.requireSubject();
@@ -186,7 +193,7 @@ public class ExpenseService {
             throw createExpenseNotFoundException("No expenses found for the requested user");
         }
 
-        return listForOwner(requestedUser, startDate, endDate, limit, cursorToken, category, subcategory, accountId);
+        return listForOwner(requestedUser, startDate, endDate, limit, cursorToken, category, subcategory, accountId, transactionAmount);
     }
 
     /**
@@ -205,7 +212,8 @@ public class ExpenseService {
                                                       String subcategory) {
         // Ownership-checked: a non-owned or missing account is hidden as 404.
         String owner = accountService.getById(accountId, false).createdBy();
-        return listForOwner(owner, startDate, endDate, limit, cursorToken, category, subcategory, accountId);
+        // The transaction_amount filter is exposed only on GET /expenses, so account listing passes null.
+        return listForOwner(owner, startDate, endDate, limit, cursorToken, category, subcategory, accountId, null);
     }
 
     /**
@@ -219,7 +227,8 @@ public class ExpenseService {
                                                      String cursorToken,
                                                      String category,
                                                      String subcategory,
-                                                     Long accountId) {
+                                                     Long accountId,
+                                                     BigDecimal transactionAmount) {
         // --- Validate mutually exclusive filters ---
         if (category != null && subcategory != null) {
             throw createValidationException("category and subcategory are mutually exclusive; provide at most one");
@@ -249,7 +258,7 @@ public class ExpenseService {
         // --- Fetch and map ---
         List<ExpenseEntity> entities = repo.findByFiltersCursor(
             userId, window.startDate(), window.endDate(),
-            category, subcategory, accountId,
+            category, subcategory, accountId, transactionAmount,
             resolvedLimit, cursor);
         List<Expense> expenses = entities.stream().map(ExpenseMapper::toDto).toList();
 
@@ -263,7 +272,41 @@ public class ExpenseService {
         return new CursorPageResponse<>(expenses, nextCursor, resolvedLimit);
     }
 
-    private void expenseWriteValidations(Expense expense, String callerSub) {
+    /**
+     * Creation-only default: when the caller omits {@code transactionAmount}, set it to the line's
+     * own {@code amount}. Never derived from splits or amount edits.
+     */
+    private static ExpenseEntity defaultTransactionAmount(ExpenseEntity entity) {
+        if (entity.transactionAmount() != null) {
+            return entity;
+        }
+        return entity.toBuilder().transactionAmount(entity.amount()).build();
+    }
+
+    /**
+     * Merges a partial update onto the stored entity: a null {@code amount} or
+     * {@code transactionAmount} in the incoming payload preserves the existing stored value.
+     * Unlike creation, a null {@code transactionAmount} is NOT re-defaulted to {@code amount}.
+     */
+    private static ExpenseEntity mergeUpdateValues(ExpenseEntity incoming, ExpenseEntity existing) {
+        var builder = incoming.toBuilder();
+        if (incoming.amount() == null) {
+            builder.amount(existing.amount());
+        }
+        if (incoming.transactionAmount() == null) {
+            builder.transactionAmount(existing.transactionAmount());
+        }
+        return builder.build();
+    }
+
+    /**
+     * Validates an expense write payload.
+     *
+     * @param amountRequired when {@code true} a null {@code amount} is rejected (create/bulk);
+     *                       when {@code false} a null {@code amount} is allowed (update treats it
+     *                       as "leave unchanged")
+     */
+    private void expenseWriteValidations(Expense expense, String callerSub, boolean amountRequired) {
         if (expense.expenseDate() == null) {
             throw createValidationException("expenseDate cannot be null");
         }
@@ -272,7 +315,7 @@ public class ExpenseService {
             throw createValidationException("accountId cannot be null");
         }
 
-        if (expense.amount() == null) {
+        if (amountRequired && expense.amount() == null) {
             throw createValidationException("amount cannot be null");
         }
 

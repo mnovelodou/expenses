@@ -22,6 +22,7 @@ public final class ExpenseMapper {
             expense.expenseDate(),
             expense.accountId(),
             expense.amount(),
+            expense.transactionAmount(),
             expense.description(),
             CategoryMapper.getCategory(expense.subCategory()).name(),
             expense.subCategory().name(),
@@ -40,6 +41,7 @@ public final class ExpenseMapper {
             entity.expenseDate(),
             entity.accountId(),
             entity.amount(),
+            entity.transactionAmount(),
             entity.description(),
             SubCategory.valueOf(entity.subcategory()),
             entity.createdBy()

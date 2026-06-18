@@ -74,6 +74,7 @@ public class ExpenseServiceTest {
         LocalDate.of(2026, 5, 25),
         ACCOUNT_ID,
         new BigDecimal("1000.00"),
+        new BigDecimal("1000.00"),
         "Expensive Tacos",
         SubCategory.RESTAURANT,
         "user-1");
@@ -82,6 +83,7 @@ public class ExpenseServiceTest {
         null,
         LocalDate.of(2026, 5, 25),
         ACCOUNT_ID,
+        new BigDecimal("1000.00"),
         new BigDecimal("1000.00"),
         "Expensive Tacos",
         CategoryMapper.getCategory(SubCategory.RESTAURANT).name(),
@@ -93,6 +95,7 @@ public class ExpenseServiceTest {
         LocalDate.of(2026, 5, 25),
         ACCOUNT_ID,
         new BigDecimal("1000.00"),
+        new BigDecimal("1000.00"),
         "Expensive Tacos",
         CategoryMapper.getCategory(SubCategory.RESTAURANT).name(),
         SubCategory.RESTAURANT.name(),
@@ -102,6 +105,7 @@ public class ExpenseServiceTest {
         EXPENSE_ID,
         LocalDate.of(2026, 5, 25),
         ACCOUNT_ID,
+        new BigDecimal("1000.00"),
         new BigDecimal("1000.00"),
         "Expensive Tacos",
         SubCategory.RESTAURANT,
@@ -211,7 +215,7 @@ public class ExpenseServiceTest {
     @Test
     void listByUser_requestedUserNotCaller_throwsExpenseNotFoundException() {
         assertThrows(ExpenseNotFoundException.class,
-            () -> service.listByUser("someone-else", null, null, null, null, null, null, null));
+            () -> service.listByUser("someone-else", null, null, null, null, null, null, null, null));
     }
 
     @Test
@@ -255,6 +259,70 @@ public class ExpenseServiceTest {
         verify(repo).update(EXPENSE_ID, updatedExpenseEntity);
     }
 
+    // -------------------------------------------------------------------------
+    // transactionAmount: creation default and partial update
+    // -------------------------------------------------------------------------
+
+    @Test
+    void create_nullTransactionAmount_defaultsToAmount() {
+        Expense noTx = VALID_NEW_EXPENSE.toBuilder().transactionAmount(null).build();
+        when(accountService.getById(eq(ACCOUNT_ID), eq(false))).thenReturn(VALID_ACCOUNT);
+        // MAPPEED_ENTITY carries transactionAmount == amount (1000.00): the defaulted entity.
+        when(repo.create(MAPPEED_ENTITY)).thenReturn(CREATED_ENTITY);
+
+        CreateExpenseResponse resp = service.create(new CreateExpenseRequest(noTx));
+
+        assertEquals(new BigDecimal("1000.00"), resp.value().transactionAmount());
+        verify(repo).create(MAPPEED_ENTITY);
+    }
+
+    @Test
+    void create_explicitTransactionAmount_isPreserved() {
+        Expense split = VALID_NEW_EXPENSE.toBuilder()
+            .amount(new BigDecimal("600.00"))
+            .transactionAmount(new BigDecimal("1000.00"))
+            .build();
+        ExpenseEntity expectedEntity = MAPPEED_ENTITY.toBuilder().amount(new BigDecimal("600.00")).build();
+        when(accountService.getById(eq(ACCOUNT_ID), eq(false))).thenReturn(VALID_ACCOUNT);
+        when(repo.create(expectedEntity)).thenReturn(expectedEntity.toBuilder().expenseId(EXPENSE_ID).build());
+
+        CreateExpenseResponse resp = service.create(new CreateExpenseRequest(split));
+
+        // Split line keeps its own amount but carries the original transaction total.
+        assertEquals(new BigDecimal("600.00"), resp.value().amount());
+        assertEquals(new BigDecimal("1000.00"), resp.value().transactionAmount());
+    }
+
+    @Test
+    void update_nullAmount_preservesStoredAmount() {
+        // Request omits amount; stored amount (1000.00) must be preserved, no validation error.
+        Expense req = UPDATED_EXPENSE.toBuilder().amount(null).build();
+        when(accountService.getById(anyLong(), anyBoolean())).thenReturn(VALID_ACCOUNT);
+        when(repo.get(anyLong())).thenReturn(Optional.of(CREATED_ENTITY));
+        when(repo.update(eq(EXPENSE_ID), any(ExpenseEntity.class)))
+            .thenAnswer(inv -> Optional.of(inv.getArgument(1)));
+
+        UpdateExpenseResponse resp = service.update(EXPENSE_ID, new UpdateExpenseRequest(req));
+
+        assertEquals(new BigDecimal("1000.00"), resp.value().amount());
+    }
+
+    @Test
+    void update_nullTransactionAmount_preservesStored_notRedefaultedToAmount() {
+        // Request changes amount to 100 but omits transactionAmount; stored tx (1000.00) is kept,
+        // NOT re-defaulted to the new amount.
+        Expense req = UPDATED_EXPENSE.toBuilder().transactionAmount(null).build();
+        when(accountService.getById(anyLong(), anyBoolean())).thenReturn(VALID_ACCOUNT);
+        when(repo.get(anyLong())).thenReturn(Optional.of(CREATED_ENTITY));
+        when(repo.update(eq(EXPENSE_ID), any(ExpenseEntity.class)))
+            .thenAnswer(inv -> Optional.of(inv.getArgument(1)));
+
+        UpdateExpenseResponse resp = service.update(EXPENSE_ID, new UpdateExpenseRequest(req));
+
+        assertEquals(new BigDecimal("100.00"), resp.value().amount());
+        assertEquals(new BigDecimal("1000.00"), resp.value().transactionAmount());
+    }
+
     @Test
     void update_accountNotOwned_throwsAccountNotFound() {
         when(accountService.getById(eq(VALID_NEW_EXPENSE.accountId()), eq(false)))
@@ -288,7 +356,7 @@ public class ExpenseServiceTest {
     }
 
     @ParameterizedTest(name = "create_testInvalidInputs-{0}")
-    @MethodSource("invalidExpenses")
+    @MethodSource("invalidCreateExpenses")
     void create_testInvalidInputs(String testName, Expense expense) {
         CreateExpenseRequest request = new CreateExpenseRequest(expense);
         assertThrows(ExpenseValidationException.class, () -> service.create(request));
@@ -301,6 +369,7 @@ public class ExpenseServiceTest {
         assertThrows(ExpenseValidationException.class, () -> service.update(EXPENSE_ID, updateExpenseRequest));
     }
 
+    /** Cases invalid for both create and update (amount is NOT included — it is partial on update). */
     static Stream<Arguments> invalidExpenses() {
         return Stream.of(
             Arguments.of(
@@ -309,6 +378,7 @@ public class ExpenseServiceTest {
                     null,
                     null,
                     ACCOUNT_ID,
+                    new BigDecimal("1000.00"),
                     new BigDecimal("1000.00"),
                     "Expensive Tacos",
                     SubCategory.RESTAURANT,
@@ -320,16 +390,7 @@ public class ExpenseServiceTest {
                     LocalDate.of(2026, 5, 25),
                     null,
                     new BigDecimal("1000.00"),
-                    "Expensive Tacos",
-                    SubCategory.RESTAURANT,
-                    "user-1")),
-            Arguments.of(
-                "invalid_account_amount",
-                new Expense(
-                    null,
-                    LocalDate.of(2026, 5, 25),
-                    ACCOUNT_ID,
-                    null,
+                    new BigDecimal("1000.00"),
                     "Expensive Tacos",
                     SubCategory.RESTAURANT,
                     "user-1")),
@@ -339,6 +400,7 @@ public class ExpenseServiceTest {
                     null,
                     LocalDate.of(2026, 5, 25),
                     ACCOUNT_ID,
+                    new BigDecimal("1000.00"),
                     new BigDecimal("1000.00"),
                     null,
                     SubCategory.RESTAURANT,
@@ -350,6 +412,7 @@ public class ExpenseServiceTest {
                     LocalDate.of(2026, 5, 25),
                     ACCOUNT_ID,
                     new BigDecimal("1000.00"),
+                    new BigDecimal("1000.00"),
                     "",
                     SubCategory.RESTAURANT,
                     "user-1")),
@@ -359,6 +422,7 @@ public class ExpenseServiceTest {
                     null,
                     LocalDate.of(2026, 5, 25),
                     ACCOUNT_ID,
+                    new BigDecimal("1000.00"),
                     new BigDecimal("1000.00"),
                     "Expensive Tacos",
                     null,
@@ -370,6 +434,7 @@ public class ExpenseServiceTest {
                     LocalDate.of(2026, 5, 25),
                     ACCOUNT_ID,
                     new BigDecimal("1000.00"),
+                    new BigDecimal("1000.00"),
                     "Expensive Tacos",
                     SubCategory.RESTAURANT,
                     null)),
@@ -380,9 +445,30 @@ public class ExpenseServiceTest {
                     LocalDate.of(2026, 5, 25),
                     ACCOUNT_ID,
                     new BigDecimal("1000.00"),
+                    new BigDecimal("1000.00"),
                     "Expensive Tacos",
                     SubCategory.RESTAURANT,
                     "")));
+    }
+
+    /**
+     * Cases invalid for create: everything in {@link #invalidExpenses()} plus a null amount.
+     * On create a null amount is rejected; on update it is allowed (preserves the stored value).
+     */
+    static Stream<Arguments> invalidCreateExpenses() {
+        return Stream.concat(
+            invalidExpenses(),
+            Stream.of(Arguments.of(
+                "invalid_account_amount",
+                new Expense(
+                    null,
+                    LocalDate.of(2026, 5, 25),
+                    ACCOUNT_ID,
+                    null,
+                    null,
+                    "Expensive Tacos",
+                    SubCategory.RESTAURANT,
+                    "user-1"))));
     }
 
     // -------------------------------------------------------------------------
@@ -393,10 +479,10 @@ public class ExpenseServiceTest {
     @Test
     void listByUser_bothDatesAbsent_defaultsToLastCalendarMonth() {
         when(repo.findByFiltersCursor(eq("user-1"), eq(LAST_MONTH_START), eq(LAST_MONTH_END),
-            isNull(), isNull(), isNull(), eq(20), isNull()))
+            isNull(), isNull(), isNull(), isNull(), eq(20), isNull()))
             .thenReturn(List.of());
 
-        CursorPageResponse<Expense> result = service.listByUser("user-1", null, null, null, null, null, null, null);
+        CursorPageResponse<Expense> result = service.listByUser("user-1", null, null, null, null, null, null, null, null);
 
         assertNotNull(result);
         assertNull(result.nextCursor());
@@ -408,10 +494,10 @@ public class ExpenseServiceTest {
         LocalDate expectedEnd = start.plusMonths(1);
 
         when(repo.findByFiltersCursor(eq("user-1"), eq(start), eq(expectedEnd),
-            isNull(), isNull(), isNull(), anyInt(), isNull()))
+            isNull(), isNull(), isNull(), isNull(), anyInt(), isNull()))
             .thenReturn(List.of());
 
-        service.listByUser("user-1", start, null, null, null, null, null, null);
+        service.listByUser("user-1", start, null, null, null, null, null, null, null);
     }
 
     @Test
@@ -420,10 +506,10 @@ public class ExpenseServiceTest {
         LocalDate expectedStart = end.minusMonths(1);
 
         when(repo.findByFiltersCursor(eq("user-1"), eq(expectedStart), eq(end),
-            isNull(), isNull(), isNull(), anyInt(), isNull()))
+            isNull(), isNull(), isNull(), isNull(), anyInt(), isNull()))
             .thenReturn(List.of());
 
-        service.listByUser("user-1", null, end, null, null, null, null, null);
+        service.listByUser("user-1", null, end, null, null, null, null, null, null);
     }
 
     // -------------------------------------------------------------------------
@@ -434,25 +520,25 @@ public class ExpenseServiceTest {
     @ValueSource(ints = {-5, -1, 0, 101, 200})
     void listByUser_invalidLimit_throws400(int limit) {
         assertThrows(ExpenseValidationException.class,
-            () -> service.listByUser("user-1", null, null, limit, null, null, null, null));
+            () -> service.listByUser("user-1", null, null, limit, null, null, null, null, null));
     }
 
     @Test
     void listByUser_limitAtMaximum_isAllowed() {
         when(repo.findByFiltersCursor(eq("user-1"), any(), any(),
-            isNull(), isNull(), isNull(), eq(100), isNull()))
+            isNull(), isNull(), isNull(), isNull(), eq(100), isNull()))
             .thenReturn(List.of());
 
-        service.listByUser("user-1", null, null, 100, null, null, null, null);
+        service.listByUser("user-1", null, null, 100, null, null, null, null, null);
     }
 
     @Test
     void listByUser_limitAbsent_defaultsTo20() {
         when(repo.findByFiltersCursor(eq("user-1"), any(), any(),
-            isNull(), isNull(), isNull(), eq(20), isNull()))
+            isNull(), isNull(), isNull(), isNull(), eq(20), isNull()))
             .thenReturn(List.of());
 
-        service.listByUser("user-1", null, null, null, null, null, null, null);
+        service.listByUser("user-1", null, null, null, null, null, null, null, null);
     }
 
     // -------------------------------------------------------------------------
@@ -466,7 +552,7 @@ public class ExpenseServiceTest {
         String cursor = ExpenseCursor.encode(LocalDate.of(2026, 3, 1), 10L);
 
         assertThrows(InvalidCursorException.class,
-            () -> service.listByUser("user-1", start, end, null, cursor, null, null, null));
+            () -> service.listByUser("user-1", start, end, null, cursor, null, null, null, null));
     }
 
     // -------------------------------------------------------------------------
@@ -476,7 +562,7 @@ public class ExpenseServiceTest {
     @Test
     void listByUser_categoryAndSubcategoryBothProvided_throws400() {
         assertThrows(ExpenseValidationException.class,
-            () -> service.listByUser("user-1", null, null, null, null, "Food", "Groceries", null));
+            () -> service.listByUser("user-1", null, null, null, null, "Food", "Groceries", null, null));
     }
 
     // -------------------------------------------------------------------------
@@ -486,37 +572,50 @@ public class ExpenseServiceTest {
     @Test
     void listByUser_categoryFilter_passedToRepo() {
         when(repo.findByFiltersCursor(eq("user-1"), any(), any(),
-            eq("Food"), isNull(), isNull(), anyInt(), isNull()))
+            eq("Food"), isNull(), isNull(), isNull(), anyInt(), isNull()))
             .thenReturn(List.of());
 
-        service.listByUser("user-1", null, null, null, null, "Food", null, null);
+        service.listByUser("user-1", null, null, null, null, "Food", null, null, null);
 
         verify(repo).findByFiltersCursor(eq("user-1"), any(), any(),
-            eq("Food"), isNull(), isNull(), anyInt(), isNull());
+            eq("Food"), isNull(), isNull(), isNull(), anyInt(), isNull());
     }
 
     @Test
     void listByUser_subcategoryFilter_passedToRepo() {
         when(repo.findByFiltersCursor(eq("user-1"), any(), any(),
-            isNull(), eq("Groceries"), isNull(), anyInt(), isNull()))
+            isNull(), eq("Groceries"), isNull(), isNull(), anyInt(), isNull()))
             .thenReturn(List.of());
 
-        service.listByUser("user-1", null, null, null, null, null, "Groceries", null);
+        service.listByUser("user-1", null, null, null, null, null, "Groceries", null, null);
 
         verify(repo).findByFiltersCursor(eq("user-1"), any(), any(),
-            isNull(), eq("Groceries"), isNull(), anyInt(), isNull());
+            isNull(), eq("Groceries"), isNull(), isNull(), anyInt(), isNull());
     }
 
     @Test
     void listByUser_accountIdFilter_passedToRepo() {
         when(repo.findByFiltersCursor(eq("user-1"), any(), any(),
-            isNull(), isNull(), eq(3L), anyInt(), isNull()))
+            isNull(), isNull(), eq(3L), isNull(), anyInt(), isNull()))
             .thenReturn(List.of());
 
-        service.listByUser("user-1", null, null, null, null, null, null, 3L);
+        service.listByUser("user-1", null, null, null, null, null, null, 3L, null);
 
         verify(repo).findByFiltersCursor(eq("user-1"), any(), any(),
-            isNull(), isNull(), eq(3L), anyInt(), isNull());
+            isNull(), isNull(), eq(3L), isNull(), anyInt(), isNull());
+    }
+
+    @Test
+    void listByUser_transactionAmountFilter_passedToRepo() {
+        BigDecimal txAmount = new BigDecimal("100.00");
+        when(repo.findByFiltersCursor(eq("user-1"), any(), any(),
+            isNull(), isNull(), isNull(), eq(txAmount), anyInt(), isNull()))
+            .thenReturn(List.of());
+
+        service.listByUser("user-1", null, null, null, null, null, null, null, txAmount);
+
+        verify(repo).findByFiltersCursor(eq("user-1"), any(), any(),
+            isNull(), isNull(), isNull(), eq(txAmount), anyInt(), isNull());
     }
 
     // -------------------------------------------------------------------------
@@ -533,10 +632,10 @@ public class ExpenseServiceTest {
             anEntity(9L,  LocalDate.of(2026, 4, 15)));
 
         when(repo.findByFiltersCursor(eq("user-1"), eq(start), eq(end),
-            isNull(), isNull(), isNull(), eq(2), isNull()))
+            isNull(), isNull(), isNull(), isNull(), eq(2), isNull()))
             .thenReturn(entities);
 
-        CursorPageResponse<Expense> result = service.listByUser("user-1", start, end, 2, null, null, null, null);
+        CursorPageResponse<Expense> result = service.listByUser("user-1", start, end, 2, null, null, null, null, null);
 
         assertNotNull(result.nextCursor());
     }
@@ -547,10 +646,10 @@ public class ExpenseServiceTest {
         LocalDate end = LocalDate.of(2026, 5, 1);
 
         when(repo.findByFiltersCursor(eq("user-1"), eq(start), eq(end),
-            isNull(), isNull(), isNull(), eq(20), isNull()))
+            isNull(), isNull(), isNull(), isNull(), eq(20), isNull()))
             .thenReturn(List.of(anEntity(5L, LocalDate.of(2026, 4, 10))));
 
-        CursorPageResponse<Expense> result = service.listByUser("user-1", start, end, null, null, null, null, null);
+        CursorPageResponse<Expense> result = service.listByUser("user-1", start, end, null, null, null, null, null, null);
 
         assertNull(result.nextCursor());
     }
@@ -607,7 +706,7 @@ public class ExpenseServiceTest {
     // -------------------------------------------------------------------------
 
     private ExpenseEntity anEntity(Long id, LocalDate date) {
-        return new ExpenseEntity(id, date, ACCOUNT_ID, new BigDecimal("50.00"), "Lunch",
+        return new ExpenseEntity(id, date, ACCOUNT_ID, new BigDecimal("50.00"), new BigDecimal("50.00"), "Lunch",
             CategoryMapper.getCategory(SubCategory.RESTAURANT).name(),
             SubCategory.RESTAURANT.name(), "user-1");
     }

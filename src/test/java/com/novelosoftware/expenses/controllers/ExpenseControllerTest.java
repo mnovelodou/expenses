@@ -252,7 +252,8 @@ public class ExpenseControllerTest {
         when(expenseService.listByUser(any(), any(), any(), any(), any(),
             expectedCategory == null ? isNull() : eq(expectedCategory),
             expectedSubcategory == null ? isNull() : eq(expectedSubcategory),
-            expectedAccountId == null ? isNull() : eq(expectedAccountId)))
+            expectedAccountId == null ? isNull() : eq(expectedAccountId),
+            isNull()))
             .thenReturn(new com.novelosoftware.expenses.dto.CursorPageResponse<>(List.of(), null, 20));
 
         var request = get("/expenses").param("user_id", "user-1");
@@ -265,7 +266,23 @@ public class ExpenseControllerTest {
         verify(expenseService).listByUser(eq("user-1"), isNull(), isNull(), isNull(), isNull(),
             expectedCategory == null ? isNull() : eq(expectedCategory),
             expectedSubcategory == null ? isNull() : eq(expectedSubcategory),
-            expectedAccountId == null ? isNull() : eq(expectedAccountId));
+            expectedAccountId == null ? isNull() : eq(expectedAccountId),
+            isNull());
+    }
+
+    @Test
+    void list_transactionAmount_delegatesToService() throws Exception {
+        when(expenseService.listByUser(any(), any(), any(), any(), any(),
+            isNull(), isNull(), isNull(), eq(new BigDecimal("100.00"))))
+            .thenReturn(new com.novelosoftware.expenses.dto.CursorPageResponse<>(List.of(), null, 20));
+
+        mockMvc.perform(get("/expenses")
+                .param("user_id", "user-1")
+                .param("transaction_amount", "100.00"))
+            .andExpect(status().isOk());
+
+        verify(expenseService).listByUser(eq("user-1"), isNull(), isNull(), isNull(), isNull(),
+            isNull(), isNull(), isNull(), eq(new BigDecimal("100.00")));
     }
 
     static Stream<Arguments> filterCombinations() {
@@ -282,7 +299,7 @@ public class ExpenseControllerTest {
     @Test
     void list_categoryAndSubcategoryBothProvided_returns400() throws Exception {
         when(expenseService.listByUser(any(), any(), any(), any(), any(),
-            eq("Food"), eq("Groceries"), isNull()))
+            eq("Food"), eq("Groceries"), isNull(), isNull()))
             .thenThrow(com.novelosoftware.expenses.exceptions.ExpenseServiceExceptions
                 .createValidationException("category and subcategory are mutually exclusive; provide at most one"));
 
@@ -347,8 +364,10 @@ public class ExpenseControllerTest {
         return new Expense(
             id,
             LocalDate.of(2026, 5, 25), 
-            1L, 
+            1L,
             new BigDecimal("1000.00"),
+            // Payloads omit transactionAmount, so the deserialized request carries null here.
+            null,
             "Expensive Tacos",
             SubCategory.RESTAURANT,
             "user-1");

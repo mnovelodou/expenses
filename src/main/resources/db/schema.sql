@@ -33,3 +33,7 @@ ALTER TABLE accounts ADD COLUMN IF NOT EXISTS period_start DATE;
 
 -- Bounds the account gap aggregation (SUM of expenses for an account since period_start).
 CREATE INDEX IF NOT EXISTS idx_expenses_account_date ON expenses(account_id, expense_date);
+
+-- Original (pre-split) transaction total carried on each expense line. Nullable for existing
+-- rows; new rows default it to the line's amount at the service layer. No index in this change.
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS transaction_amount NUMERIC(15, 2);
