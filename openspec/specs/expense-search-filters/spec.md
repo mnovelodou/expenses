@@ -1,5 +1,7 @@
 # expense-search-filters
 
+## Purpose
+
 Optional filtering parameters for the `GET /expenses` endpoint, allowing results to be narrowed by category, subcategory, and account.
 
 ## Requirements

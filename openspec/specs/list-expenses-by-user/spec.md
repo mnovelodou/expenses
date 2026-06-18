@@ -1,9 +1,9 @@
 # list-expenses-by-user
 
+## Purpose
+
 Paginated listing of expenses for a given user within a date window, using forward cursor pagination.
-
 ## Requirements
-
 ### Requirement: Authorization required for expense listing
 `GET /expenses` SHALL reject unauthenticated requests and under-scoped requests before any other validation is applied. A request without a valid Bearer token SHALL return HTTP 401. A request with a valid token lacking the `read:expenses` scope SHALL return HTTP 403.
 
@@ -21,7 +21,7 @@ The system SHALL expose a `GET /expenses` endpoint that returns a paginated list
 - Only `start_date` provided: `end_date` defaults to `start_date` plus 1 month.
 - Only `end_date` provided: `start_date` defaults to `end_date` minus 1 month.
 
-The date range from `start_date` to `end_date` SHALL NOT exceed 3 calendar months; requests exceeding this limit SHALL be rejected with HTTP 400. Optional filters `category`, `subcategory`, and `accountId` MAY be supplied to narrow results; see the `expense-search-filters` spec.
+The date range from `start_date` to `end_date` SHALL NOT exceed 3 calendar months; requests exceeding this limit SHALL be rejected with HTTP 400. Optional filters `category`, `subcategory`, `accountId`, and `transaction_amount` MAY be supplied to narrow results; see the `expense-search-filters` and `transaction-amount` specs.
 
 #### Scenario: Missing user_id — rejected
 - **WHEN** a GET request is made to `/expenses` without a `user_id` parameter
@@ -50,6 +50,10 @@ The date range from `start_date` to `end_date` SHALL NOT exceed 3 calendar month
 #### Scenario: end_date is before start_date
 - **WHEN** a GET request is made with `end_date` earlier than `start_date`
 - **THEN** the system returns HTTP 400
+
+#### Scenario: Filter by transaction_amount within the date window
+- **WHEN** a GET request includes `transaction_amount=100.00` alongside the required `user_id` and date range
+- **THEN** the system returns HTTP 200 with only expenses whose `transaction_amount = 100.00` in the window
 
 ### Requirement: Forward cursor pagination
 The system SHALL support forward-only cursor pagination via an optional `cursor` query parameter. On the first page the parameter SHALL be omitted. The response SHALL include a `nextCursor` field that is a non-null opaque string when more results exist, and null when the current page is the last page within the date window.
@@ -102,3 +106,4 @@ The endpoint SHALL return a `CursorPageResponse` with `content` (list of expense
 #### Scenario: Response structure matches contract
 - **WHEN** a valid request is made to `GET /expenses`
 - **THEN** the response body contains `content`, `nextCursor`, and `pageSize` fields
+
